@@ -1,0 +1,2 @@
+-- The order and inventory schema starts empty.
+-- Domain tables are added when the order model is decided.

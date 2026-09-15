@@ -1,0 +1,6 @@
+[tool.uv.workspace]
+members = [
+    "services/agent-service",
+    "services/search-mcp",
+    "services/inventory-mcp",
+]
