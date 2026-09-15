@@ -6,23 +6,69 @@
 # Java / Gradle
 .gradle/
 **/build/
+*.class
+out/
+*.jar
+*.war
+*.ear
 !gradle/wrapper/gradle-wrapper.jar
+*.log
+hs_err_pid*
+replay_pid*
 
-# Python
+# Python environment and bytecode
 .venv/
 **/__pycache__/
 *.py[cod]
+*.so
+
+# Python packaging
+dist/
+.eggs/
+*.egg-info/
+
+# Tests, coverage, and type checking
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.dmypy.json
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.py.cover
+*.lcov
+.pyre/
+.pytype/
 
-# IDE
+# IDE and editors
 .idea/
 *.iml
+*.iws
+.idea_modules/
 .vscode/
+.classpath
+.project
+.settings/
+.factorypath
+*.swp
+*.swo
+*~
 
-# macOS
+# Operating systems
 .DS_Store
+Thumbs.db
+Desktop.ini
 
-# Local data
+# Runtime files
+*.pid
+*.rdb
+*.aof
+
+# Local data and generated review artifacts
 .local/
+semantic-review/
