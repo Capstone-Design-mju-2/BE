@@ -1,0 +1,52 @@
+{
+  "answer": "조건에 맞는 상품 3개를 찾았습니다.",
+  "products": [
+    {
+      "productId": 101,
+      "name": "수분크림 A",
+      "brand": "브랜드 A",
+      "price": 25900,
+      "reason": "건성 피부 사용자의 보습력 평가가 높고 끈적임 언급이 적습니다.",
+      "evidence": [
+        { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요" },
+        { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요" }
+      ],
+      "inventory": {
+        "status": "IN_STOCK",
+        "quantity": 12,
+        "estimatedDeliveryDate": "2026-09-17"
+      }
+    },
+    {
+      "productId": 102,
+      "name": "수분크림 B",
+      "brand": "브랜드 B",
+      "price": 19800,
+      "reason": null,
+      "evidence": [
+        { "reviewId": 9102, "rating": 5, "excerpt": "겨울에도 속당김이 없고 흡수가 빨라요" }
+      ],
+      "inventory": {
+        "status": "OUT_OF_STOCK",
+        "quantity": 0,
+        "estimatedDeliveryDate": null
+      }
+    },
+    {
+      "productId": 103,
+      "name": "수분크림 C",
+      "brand": "브랜드 C",
+      "price": 29500,
+      "reason": null,
+      "evidence": [
+        { "reviewId": 9210, "rating": 4, "excerpt": "가볍게 발리고 유분기가 남지 않아요" },
+        { "reviewId": 9233, "rating": 3, "excerpt": "향은 호불호가 있지만 보습은 좋아요" }
+      ],
+      "inventory": {
+        "status": "UNKNOWN",
+        "quantity": null,
+        "estimatedDeliveryDate": null
+      }
+    }
+  ]
+}
