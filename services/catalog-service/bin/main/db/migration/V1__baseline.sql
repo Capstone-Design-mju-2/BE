@@ -1,0 +1,2 @@
+-- The catalog schema starts empty.
+-- Domain tables are added when the catalog model is decided.
