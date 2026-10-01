@@ -95,6 +95,9 @@ class ProductSearchControllerTest {
         String excerpt = ProductSearch.excerpt(longText, "촉촉");
         assertThat(excerpt.codePointCount(0, excerpt.length())).isEqualTo(80);
         assertThat(excerpt).contains("촉촉");
+
+        String english = "가".repeat(100) + "SPF50 선크림" + "나".repeat(100);
+        assertThat(ProductSearch.excerpt(english, "spf")).contains("SPF50");
     }
 
     @Test
@@ -109,6 +112,9 @@ class ProductSearchControllerTest {
                 .andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/v1/products/search").param("q", " "))
                 .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("maxPrice", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SEARCH_REQUEST"));
     }
 
     @Test

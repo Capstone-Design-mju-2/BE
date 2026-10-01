@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -74,8 +75,8 @@ public class ProductSearch {
     static String excerpt(String content, String q) {
         String flat = content.strip().replaceAll("\\s+", " ");
         int[] codePoints = flat.codePoints().toArray();
-        int hit = flat.indexOf(q);
-        int start = hit < 0 ? 0 : Math.max(0, flat.codePointCount(0, hit) - EXCERPT_LEAD);
+        var match = Pattern.compile(Pattern.quote(q), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(flat);
+        int start = match.find() ? Math.max(0, flat.codePointCount(0, match.start()) - EXCERPT_LEAD) : 0;
         int end = Math.min(codePoints.length, start + EXCERPT_LENGTH);
         return new String(codePoints, start, end - start);
     }

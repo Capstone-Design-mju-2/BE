@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.capstone.catalog.product.ProductSearch.Product;
 
@@ -31,7 +32,8 @@ public class ProductSearchController {
         return new SearchResponse(productSearch.search(q.strip(), maxPrice, limit));
     }
 
-    @ExceptionHandler({MissingServletRequestParameterException.class, HandlerMethodValidationException.class})
+    @ExceptionHandler({MissingServletRequestParameterException.class, HandlerMethodValidationException.class,
+            MethodArgumentTypeMismatchException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse invalidRequest() {
         return new ErrorResponse("INVALID_SEARCH_REQUEST", "q는 필수이고 limit은 1~20, maxPrice는 0 이상이어야 합니다.");
