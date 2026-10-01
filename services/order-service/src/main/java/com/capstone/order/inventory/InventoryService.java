@@ -27,8 +27,7 @@ public class InventoryService {
     }
 
     public Inventory findById(Long id) {
-        return inventoryRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("없는 재고 id=" + id));
+        return inventoryRepository.findById(id).orElseThrow();
     }
 
     @Transactional(readOnly = true)
