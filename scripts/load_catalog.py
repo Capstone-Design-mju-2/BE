@@ -22,7 +22,7 @@ def main() -> int:
     for path in args.files:
         with open(path, encoding="utf-8") as file:
             for line in file:
-                request = urllib.request.Request(f"{args.base_url}/api/v1/products/load", data=line.encode(),
+                request = urllib.request.Request(f"{args.base_url}/internal/products/load", data=line.encode(),
                                                  headers={"Content-Type": "application/json"})
                 try:
                     with urllib.request.urlopen(request, timeout=30) as response:

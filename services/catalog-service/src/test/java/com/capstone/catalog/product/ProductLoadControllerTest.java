@@ -70,7 +70,7 @@ class ProductLoadControllerTest {
         String onlySecondReview = PRODUCT.formatted(40000, "촉촉해요")
                 .replaceAll("(?s)\\{\"externalId\": 1,.*?\"전혀없음\"}]}]}},", "");
 
-        mockMvc.perform(post("/api/v1/products/load").contentType(MediaType.APPLICATION_JSON).content(onlySecondReview))
+        mockMvc.perform(post("/internal/products/load").contentType(MediaType.APPLICATION_JSON).content(onlySecondReview))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewCount").value(1));
 
@@ -90,14 +90,14 @@ class ProductLoadControllerTest {
 
     @Test
     void 필수_값이_없으면_400을_반환한다() throws Exception {
-        mockMvc.perform(post("/api/v1/products/load")
+        mockMvc.perform(post("/internal/products/load")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"externalId\": 1}"))
                 .andExpect(status().isBadRequest());
     }
 
     private void load(String body) throws Exception {
-        mockMvc.perform(post("/api/v1/products/load").contentType(MediaType.APPLICATION_JSON).content(body))
+        mockMvc.perform(post("/internal/products/load").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewCount").value(2));
     }

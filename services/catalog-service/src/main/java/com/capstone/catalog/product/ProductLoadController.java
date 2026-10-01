@@ -11,7 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/products")
+@RequestMapping("/internal/products")
 public class ProductLoadController {
 
     private final ProductLoader productLoader;
