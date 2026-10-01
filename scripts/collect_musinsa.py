@@ -153,13 +153,14 @@ def main() -> int:
 
     collected_on = dt.date.today().isoformat()
     out = Path(args.out_dir) / f"{args.category}-{collected_on}.jsonl"
+    part = out.with_name(out.name + ".part")
     out.parent.mkdir(parents=True, exist_ok=True)
     client = Client()
 
     written = 0
     try:
         products = list_products(client, args.category, args.products)
-        with out.open("w", encoding="utf-8") as file:
+        with part.open("w", encoding="utf-8") as file:
             for raw in products:
                 product = to_product(raw, args.category, collected_on)
                 product["reviews"] = [to_review(r, collected_on)
@@ -168,9 +169,11 @@ def main() -> int:
                 file.flush()
                 written += 1
     except Blocked as error:
-        print(f"stopped after {client.request_count} requests, {written} products saved: {error}", file=sys.stderr)
+        print(f"stopped after {client.request_count} requests, {written} products in {part}: {error}",
+              file=sys.stderr)
         return 1
 
+    part.replace(out)
     print(f"{written} products, {client.request_count} requests -> {out}")
     return 0
 

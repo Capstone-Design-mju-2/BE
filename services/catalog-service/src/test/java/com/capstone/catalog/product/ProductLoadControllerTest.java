@@ -65,6 +65,20 @@ class ProductLoadControllerTest {
     }
 
     @Test
+    void 재수집에서_빠진_리뷰는_설문_답변이_남는다() throws Exception {
+        load(PRODUCT.formatted(40000, "촉촉해요"));
+        String onlySecondReview = PRODUCT.formatted(40000, "촉촉해요")
+                .replaceAll("(?s)\\{\"externalId\": 1,.*?\"전혀없음\"}]}]}},", "");
+
+        mockMvc.perform(post("/api/v1/products/load").contentType(MediaType.APPLICATION_JSON).content(onlySecondReview))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewCount").value(1));
+
+        assertThat(count("reviews")).isEqualTo(2);
+        assertThat(count("review_survey_answers")).isEqualTo(2);
+    }
+
+    @Test
     void 다시_적재하면_가격과_리뷰_본문이_새_값으로_바뀐다() throws Exception {
         load(PRODUCT.formatted(40000, "촉촉해요"));
         load(PRODUCT.formatted(35000, "겨울에도 촉촉해요"));

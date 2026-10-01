@@ -38,9 +38,10 @@ public class ProductLoader {
                 written_at = EXCLUDED.written_at, collected_on = EXCLUDED.collected_on
             """;
 
+    // Only reviews in this payload: a review missing from a recollection keeps its answers.
     private static final String DELETE_SURVEY_ANSWERS = """
             DELETE FROM review_survey_answers
-            WHERE review_id IN (SELECT id FROM reviews WHERE product_id = ?)
+            WHERE review_id = (SELECT id FROM reviews WHERE external_id = ?)
             """;
 
     private static final String INSERT_SURVEY_ANSWER = """
@@ -67,7 +68,9 @@ public class ProductLoader {
                         r.weightMinKg(), r.weightMaxKg(), r.writtenAt(), r.collectedOn()})
                 .toList());
 
-        jdbcTemplate.update(DELETE_SURVEY_ANSWERS, productId);
+        jdbcTemplate.batchUpdate(DELETE_SURVEY_ANSWERS, p.reviews().stream()
+                .map(r -> new Object[] {r.externalId()})
+                .toList());
         jdbcTemplate.batchUpdate(INSERT_SURVEY_ANSWER, surveyAnswers(p.reviews()));
         return productId;
     }
