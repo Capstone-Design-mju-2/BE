@@ -50,7 +50,7 @@ def main() -> int:
     for path in args.files:
         with open(path, encoding="utf-8") as file:
             for line in file:
-                product_id = post(f"{catalog}/api/v1/products/load", line)["productId"]
+                product_id = post(f"{catalog}/internal/products/load", line)["productId"]
                 review_counts[product_id] = json.loads(line)["reviewCount"]
 
     ids = list(review_counts)
