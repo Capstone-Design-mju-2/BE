@@ -24,6 +24,8 @@ check:
 	./gradlew clean build
 	uv lock --check
 	uv run python -m compileall -q services/agent-service/src services/search-mcp/src services/inventory-mcp/src
+	uv run --package agent-service python -m unittest discover -s services/agent-service/tests
+	uv run python -m doctest services/agent-service/src/agent_service/extract.py scripts/seed_inventory.py
 
 smoke:
 	./scripts/smoke.sh
