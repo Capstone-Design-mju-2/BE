@@ -23,11 +23,7 @@ public class InventoryController {
         this.inventoryService = inventoryService;
     }
 
-    @PostMapping
-    public Inventory create(@Valid @RequestBody CreateInventoryRequest request) {
-        return inventoryService.create(request.productId(), request.quantity());
-    }
-
+    
     @GetMapping("/{id}")
     public Inventory get(@PathVariable Long id) {
         return inventoryService.findById(id);
@@ -51,5 +47,5 @@ public class InventoryController {
         return new ErrorResponse("INVENTORY_NOT_FOUND", "재고를 찾을 수 없습니다.");
     }
 
-    record CreateInventoryRequest(@NotNull Long productId, @NotNull @PositiveOrZero Integer quantity) {}
+    
 }

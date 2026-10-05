@@ -22,9 +22,7 @@ public class InventoryService {
         this.inventoryRepository = inventoryRepository;
     }
 
-    public Inventory create(Long productId, int quantity) {
-        return inventoryRepository.save(new Inventory(productId, quantity));
-    }
+    
 
     public Inventory findById(Long id) {
         return inventoryRepository.findById(id).orElseThrow();
@@ -33,23 +31,24 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public List<InventoryCheck> check(List<Long> productIds) {
         var requested = new LinkedHashSet<>(productIds);
-        Map<Long, Inventory> found = inventoryRepository.findAllByProductIdIn(requested).stream()
-                .collect(Collectors.toMap(Inventory::getProductId, Function.identity()));
+        Map<Long, List<Inventory>> byProduct = inventoryRepository.findAllByProductIdIn(requested).stream()
+            .collect(Collectors.groupingBy(Inventory::getProductId));
 
         return requested.stream()
-                .map(productId -> toCheck(productId, found.get(productId)))
-                .toList();
+            .map(productId -> toCheck(productId, byProduct.get(productId)))
+            .toList();
     }
 
-    private InventoryCheck toCheck(Long productId, Inventory inventory) {
-        if (inventory == null) {
-            return new InventoryCheck(productId, InventoryStatus.NOT_FOUND, null, null);
+    private InventoryCheck toCheck(Long productId, List<Inventory> options) {
+       if (options == null || options.isEmpty()) {
+        return new InventoryCheck(productId, InventoryStatus.NOT_FOUND, null, null);
         }
-        if (inventory.getQuantity() == 0) {
+        int total = options.stream().mapToInt(Inventory::getQuantity).sum();
+        if (total == 0) {
             return new InventoryCheck(productId, InventoryStatus.OUT_OF_STOCK, 0, null);
         }
-        return new InventoryCheck(productId, InventoryStatus.IN_STOCK, inventory.getQuantity(),
-                LocalDate.now(SEOUL).plusDays(1));
+        return new InventoryCheck(productId, InventoryStatus.IN_STOCK, total,
+            LocalDate.now(SEOUL).plusDays(1));
     }
 
     public enum InventoryStatus { IN_STOCK, OUT_OF_STOCK, NOT_FOUND }
