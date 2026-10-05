@@ -1,6 +1,9 @@
 package com.capstone.order.inventory;
 
 import java.util.List;
+import org.springframework.context.annotation.Import;
+import com.capstone.order.TestcontainersConfiguration;
+
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +14,7 @@ import com.capstone.order.inventory.InventoryLoadService.OptionInput;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Import(TestcontainersConfiguration.class)
 class InventoryLoadControllerTest {
 
     @Autowired InventoryLoadService inventoryLoadService;
