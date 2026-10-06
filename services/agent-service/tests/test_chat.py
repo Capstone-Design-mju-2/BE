@@ -1,12 +1,11 @@
 """uv run --package agent-service python -m unittest discover -s services/agent-service/tests"""
 
-import json
 import unittest
 
-import httpx
 from fastapi.testclient import TestClient
 
-from agent_service.main import app, http_client
+from agent_service.main import app, get_tools
+from agent_service.tools import ToolError
 
 MESSAGE = "건성 피부에 끈적이지 않는 수분크림 중 3만원 이하인 상품 추천해 줘"
 SEARCH = {"products": [
@@ -24,23 +23,30 @@ INVENTORY = {"inventories": [
 ]}
 
 
-def serve(catalog=None, order=None):
-    """catalog/order: response body dict, or None for a connection failure."""
-    seen = []
+class FakeTools:
+    """search/inventory: tool result dict, or None for a failed tool call."""
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request)
-        body = catalog if request.url.path.endswith("/search") else order
-        if body is None:
-            raise httpx.ConnectError("down", request=request)
-        return httpx.Response(200, json=body)
+    def __init__(self, search, inventory):
+        self.search, self.inventory = search, inventory
+        self.calls = []
 
-    async def override():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            yield client
+    async def search_products(self, q, max_price, limit):
+        self.calls.append(("search_products", q, max_price, limit))
+        if self.search is None:
+            raise ToolError("search_products could not be called")
+        return self.search
 
-    app.dependency_overrides[http_client] = override
-    return seen
+    async def check_inventory(self, product_ids):
+        self.calls.append(("check_inventory", product_ids))
+        if self.inventory is None:
+            raise ToolError("check_inventory could not be called")
+        return self.inventory
+
+
+def serve(search=None, inventory=None):
+    tools = FakeTools(search, inventory)
+    app.dependency_overrides[get_tools] = lambda: tools
+    return tools
 
 
 class ChatTest(unittest.TestCase):
@@ -54,7 +60,7 @@ class ChatTest(unittest.TestCase):
         return self.client.post("/api/v1/chat", json={"message": message})
 
     def test_정상일_때_카드에_evidence와_inventory가_채워지고_NOT_FOUND는_빠진다(self):
-        seen = serve(SEARCH, INVENTORY)
+        tools = serve(SEARCH, INVENTORY)
         body = self.chat().json()
 
         self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
@@ -62,8 +68,8 @@ class ChatTest(unittest.TestCase):
         self.assertEqual(body["products"][0]["inventory"]["status"], "IN_STOCK")
         self.assertEqual(body["products"][1]["inventory"]["status"], "OUT_OF_STOCK")
         self.assertTrue(all(p["evidence"] and p["reason"] is None for p in body["products"]))
-        self.assertEqual(dict(seen[0].url.params), {"q": "수분크림", "limit": "5", "maxPrice": "30000"})
-        self.assertEqual(json.loads(seen[1].content), {"productIds": [1, 2, 3]})
+        self.assertEqual(tools.calls, [("search_products", "수분크림", 30000, 5),
+                                       ("check_inventory", [1, 2, 3])])
 
     def test_order가_내려가면_카드는_그대로이고_재고는_전부_UNKNOWN이다(self):
         serve(SEARCH, None)
@@ -80,11 +86,11 @@ class ChatTest(unittest.TestCase):
         self.assertEqual(response.json()["code"], "PRODUCT_SEARCH_FAILED")
 
     def test_사전_단어가_없으면_검색하지_않고_0개를_반환한다(self):
-        seen = serve(SEARCH, INVENTORY)
+        tools = serve(SEARCH, INVENTORY)
         body = self.chat("안녕하세요").json()
 
         self.assertEqual(body, {"answer": "조건에 맞는 상품을 찾지 못했습니다.", "products": []})
-        self.assertEqual(seen, [])
+        self.assertEqual(tools.calls, [])
 
 
 if __name__ == "__main__":
