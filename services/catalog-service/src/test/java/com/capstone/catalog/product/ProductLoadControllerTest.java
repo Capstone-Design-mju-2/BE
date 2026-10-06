@@ -89,6 +89,20 @@ class ProductLoadControllerTest {
     }
 
     @Test
+    void 두_상품이_같은_리뷰를_공유하면_상품마다_한_줄씩_갖고_설문_답변도_각자_붙는다() throws Exception {
+        String body = PRODUCT.formatted(40000, "촉촉해요");
+
+        load(body);
+        load(body.replace("\"externalId\": 5816625", "\"externalId\": 900"));
+
+        assertThat(count("products")).isEqualTo(2);
+        assertThat(count("reviews")).isEqualTo(4);
+        assertThat(count("review_survey_answers")).isEqualTo(4);
+        assertThat(jdbcTemplate.queryForList("SELECT count(*) FROM reviews GROUP BY product_id", Integer.class))
+                .containsExactly(2, 2);
+    }
+
+    @Test
     void 필수_값이_없으면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/internal/products/load")
                         .contentType(MediaType.APPLICATION_JSON)
