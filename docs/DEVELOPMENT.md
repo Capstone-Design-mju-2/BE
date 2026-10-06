@@ -52,11 +52,30 @@ make run-order
 make run-agent
 ```
 
-MCP 서버는 stdio transport를 사용한다.
+MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 도구만 단독으로 확인하려면 다음처럼 실행한다.
 
 ```bash
 make run-search-mcp
 make run-inventory-mcp
+```
+
+Claude Desktop에 붙여 도구를 단독 시험하려면 `~/Library/Application Support/Claude/claude_desktop_config.json`에 다음을 추가하고 앱을 다시 시작한다. GUI 앱은 셸의 PATH를 받지 않으므로 `uv`가 아니라 `.venv/bin`의 절대 경로를 쓴다. catalog-service와 order-service가 떠 있어야 도구가 동작한다.
+
+```json
+{
+  "mcpServers": {
+    "search-mcp": {
+      "command": "/절대/경로/BE/.venv/bin/search-mcp",
+      "args": [],
+      "env": { "CATALOG_SERVICE_URL": "http://127.0.0.1:8081" }
+    },
+    "inventory-mcp": {
+      "command": "/절대/경로/BE/.venv/bin/inventory-mcp",
+      "args": [],
+      "env": { "ORDER_SERVICE_URL": "http://127.0.0.1:8082" }
+    }
+  }
+}
 ```
 
 ## 5. 검증
