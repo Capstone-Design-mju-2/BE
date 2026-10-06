@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 START_TIMEOUT_SECONDS = 30
 STOP_TIMEOUT_SECONDS = 10
 RECONNECT_WAIT_SECONDS = 10
+CALL_TIMEOUT_SECONDS = 8  # the tools' own HTTP timeout is 3 s, so a healthy call never gets near this
 BACKOFF_START_SECONDS = 0.2
 BACKOFF_MAX_SECONDS = 5.0
 
@@ -26,13 +27,16 @@ class _Session:
     """One MCP server over stdio (ADR-67), opened once and reused (ADR-68).
 
     A single task opens, owns and closes the session because the SDK must exit its cancel scopes in the task that
-    entered them. When a call fails, that task reopens the session and the failed call is retried once (ADR-69).
+    entered them. When a call fails or gets no answer in time, that task reopens the session and the failed call is
+    retried once (ADR-69).
     """
 
-    def __init__(self, executable: str, env: dict[str, str], start_timeout: float = START_TIMEOUT_SECONDS) -> None:
+    def __init__(self, executable: str, env: dict[str, str], start_timeout: float = START_TIMEOUT_SECONDS,
+                 call_timeout: float = CALL_TIMEOUT_SECONDS) -> None:
         self._executable = executable
         self._parameters = StdioServerParameters(command=str(Path(sys.executable).parent / executable), env=env)
         self._start_timeout = start_timeout
+        self._call_timeout = call_timeout
         self._session: ClientSession | None = None
         self._ready = asyncio.Event()
         self._wake = asyncio.Event()
@@ -54,6 +58,7 @@ class _Session:
 
     async def _run(self) -> None:
         delay = BACKOFF_START_SECONDS
+        failures = 0
         while not self._stopping:
             self._wake.clear()
             opened = False
@@ -65,13 +70,18 @@ class _Session:
                         self._ready.set()
                         opened = True
                         delay = BACKOFF_START_SECONDS
+                        failures = 0
                         await self._wake.wait()
-            except Exception:
-                logger.exception("%s session ended", self._executable)
+            except Exception as error:
+                if failures == 0:
+                    logger.exception("%s session ended", self._executable)
+                else:  # a server that keeps failing to start would otherwise log a full traceback every retry
+                    logger.warning("%s session ended again (%d in a row): %r", self._executable, failures + 1, error)
             finally:
                 self._session = None
                 self._ready.clear()
             if not opened and not self._stopping:
+                failures += 1
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, BACKOFF_MAX_SECONDS)
 
@@ -83,7 +93,7 @@ class _Session:
                 raise ToolError(f"{name} has no session") from error
             session = self._session
             try:
-                result = await session.call_tool(name, arguments)
+                result = await asyncio.wait_for(session.call_tool(name, arguments), self._call_timeout)
             except Exception as error:
                 if self._session is session and self._ready.is_set():
                     logger.warning("%s call failed, reopening the session: %r", name, error)

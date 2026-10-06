@@ -12,11 +12,16 @@ import unittest
 from agent_service.tools import ToolError, _Session
 
 HEALTH = {"status": "UP", "service": "search-mcp"}
+LOGGER = "agent_service.tools"
 
 
 def children(name: str = "search-mcp") -> list[int]:
     out = subprocess.run(["pgrep", "-P", str(os.getpid()), "-f", name], capture_output=True, text=True).stdout
     return [int(pid) for pid in out.split()]
+
+
+def gone(pid: int) -> bool:
+    return subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode != 0
 
 
 class SessionTest(unittest.IsolatedAsyncioTestCase):
@@ -38,18 +43,21 @@ class SessionTest(unittest.IsolatedAsyncioTestCase):
     async def test_서버가_죽어도_다음_호출이_성공한다(self):
         await self.kill_child()
 
-        self.assertEqual(await self.session.call("health", {}), HEALTH)
+        with self.assertLogs(LOGGER, level="WARNING"):
+            self.assertEqual(await self.session.call("health", {}), HEALTH)
         self.assertEqual(await self.session.call("health", {}), HEALTH)
         self.assertEqual(len(children()), 1)
 
     async def test_죽은_직후_동시_호출은_모두_성공하고_재연결은_한_번이다(self):
         await self.kill_child()
 
-        results = await asyncio.gather(*(self.session.call("health", {}) for _ in range(20)),
-                                       return_exceptions=True)
+        with self.assertLogs(LOGGER, level="WARNING") as logs:
+            results = await asyncio.gather(*(self.session.call("health", {}) for _ in range(20)),
+                                           return_exceptions=True)
 
         self.assertEqual(results, [HEALTH] * 20)
         self.assertEqual(len(children()), 1)
+        self.assertEqual(len(logs.records), 1)
 
     async def test_도구가_오류로_답하면_세션을_다시_열지_않는다(self):
         (pid,) = children()
@@ -65,15 +73,42 @@ class SessionTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(children(), [])
 
 
+class HungServerTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.session = _Session("search-mcp", {}, call_timeout=1)
+        await self.session.start()
+
+    async def asyncTearDown(self):
+        await self.session.stop()
+
+    async def test_응답_없이_멈춘_서버는_제한_시간_뒤_새_프로세스로_복구한다(self):
+        (stuck,) = children()
+        os.kill(stuck, signal.SIGSTOP)
+
+        with self.assertLogs(LOGGER, level="WARNING"):
+            result = await self.session.call("health", {})
+
+        self.assertEqual(result, HEALTH)
+        (fresh,) = children()
+        self.assertNotEqual(fresh, stuck)
+        self.assertTrue(gone(stuck))
+        self.assertEqual(await self.session.call("health", {}), HEALTH)
+
+
 class StartTest(unittest.IsolatedAsyncioTestCase):
     async def test_서버가_뜨지_못하면_시작이_제한_시간_안에_실패하고_종료도_된다(self):
         session = _Session("no-such-mcp-server", {}, start_timeout=1)
 
-        with self.assertRaises(TimeoutError):
-            await session.start()
-        await session.stop()
+        with self.assertLogs(LOGGER, level="WARNING") as logs:
+            with self.assertRaises(TimeoutError):
+                await session.start()
+            await session.stop()
 
         self.assertEqual(children("no-such-mcp-server"), [])
+        first, *rest = logs.records
+        self.assertIsNotNone(first.exc_info)
+        self.assertTrue(rest)
+        self.assertTrue(all(record.exc_info is None for record in rest))
 
 
 if __name__ == "__main__":
