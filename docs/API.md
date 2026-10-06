@@ -137,6 +137,43 @@ POST /api/v1/inventories/check
 
 order-service는 `UNKNOWN`을 반환하지 않는다. 호출 실패를 품절로 표시하지 않으려고 agent가 채우는 값이다.
 
+### 재고 적재 (수집기 전용)
+
+POST /api/v1/internal/inventories/load
+
+수집기가 수집한 상품의 옵션과 재고를 적재한다. 쓰기 전용이며 `/internal` 아래 둔다.
+
+요청
+
+{
+  "externalId": "musinsa-10294",
+  "productId": 101,
+  "options": [
+    { "optionKey": "100ml", "name": "토너 100ml", "price": 15000, "quantity": 30 },
+    { "optionKey": "200ml", "name": "토너 200ml", "price": 25000, "quantity": 20 }
+  ]
+}
+
+응답
+
+{ "productId": 101, "inserted": 2, "updated": 0 }
+
+- 같은 요청을 여러 번 보내도 재고가 변하지 않는다(멱등).
+- 새 옵션은 재고까지 넣는다. 이미 있는 옵션은 이름·가격만 갱신하고 재고는 건드리지 않는다.
+- 옵션은 `(productId, optionKey)`로 구분한다.
+- `quantity`는 0 이상 정수다. 음수면 400을 반환한다.
+- 한 요청의 옵션은 최대 50개다.
+- 이 API로 적재한 재고는 기존 `POST /api/v1/inventories/check`가 상품 단위로 합산해 응답한다.
+
+| status | 의미 |
+|---|---|
+| inserted | 새로 넣은 옵션 수 |
+| updated | 이름·가격만 갱신한 옵션 수 |
+
+오류
+
+{ "code": "INVALID_INVENTORY_LOAD", "message": "요청 형식이 올바르지 않습니다." }
+
 ## 4. 화면 표시 규칙
 
 agent는 `NOT_FOUND` 상품을 응답에서 제외한다. 화면이 다루는 상태는 세 가지다.

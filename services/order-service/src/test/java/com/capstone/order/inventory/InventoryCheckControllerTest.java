@@ -37,8 +37,8 @@ class InventoryCheckControllerTest {
     @BeforeEach
     void seed() {
         inventoryRepository.deleteAll();
-        inventoryRepository.save(new Inventory(101L, 12));
-        inventoryRepository.save(new Inventory(102L, 0));
+        inventoryRepository.save(new Inventory(101L, "default", "상품 101", 10000, 12));
+        inventoryRepository.save(new Inventory(102L, "default", "상품 102", 10000, 0));
     }
 
     @Test
