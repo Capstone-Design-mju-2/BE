@@ -1,8 +1,9 @@
 """Create initial order inventory for loaded catalog products.
 
 Catalog has no list API, so each JSONL line is posted to the idempotent load API again
-to learn its productId. Only products the order service reports as NOT_FOUND are created,
-which makes reruns no-ops. Replace with the option/stock load API in week 6.
+to learn its productId. The collected data has no options yet, so every product gets one
+default option (optionKey ""). The order load API leaves the quantity of an existing option
+alone, which makes reruns no-ops. Replace with real options once the collector sends them.
 
     uv run python scripts/seed_inventory.py .local/musinsa/104001-2026-09-30.jsonl
 """
@@ -13,7 +14,7 @@ import os
 import sys
 import urllib.request
 
-CHECK_BATCH = 20
+from load_catalog import drop_unrated
 
 
 def quantity(review_count: int) -> int:
@@ -46,23 +47,21 @@ def main() -> int:
     args = parser.parse_args()
     catalog, order = base_url("CATALOG", "8081"), base_url("ORDER", "8082")
 
-    review_counts = {}
+    products = created = present = 0
     for path in args.files:
         with open(path, encoding="utf-8") as file:
             for line in file:
-                product_id = post(f"{catalog}/internal/products/load", line)["productId"]
-                review_counts[product_id] = json.loads(line)["reviewCount"]
+                product, _ = drop_unrated(json.loads(line))
+                product_id = post(f"{catalog}/internal/products/load", product)["productId"]
+                option = {"optionKey": "", "name": product["name"], "price": product["price"],
+                          "quantity": quantity(product["reviewCount"])}
+                result = post(f"{order}/api/v1/internal/inventories/load",
+                              {"productId": product_id, "options": [option]})
+                products += 1
+                created += result["inserted"]
+                present += result["updated"]
 
-    ids = list(review_counts)
-    missing = []
-    for start in range(0, len(ids), CHECK_BATCH):
-        result = post(f"{order}/api/v1/inventories/check", {"productIds": ids[start:start + CHECK_BATCH]})
-        missing += [i["productId"] for i in result["inventories"] if i["status"] == "NOT_FOUND"]
-
-    for product_id in missing:
-        post(f"{order}/inventory", {"productId": product_id, "quantity": quantity(review_counts[product_id])})
-
-    print(f"{len(ids)} products, {len(missing)} inventories created, {len(ids) - len(missing)} already present")
+    print(f"{products} products, {created} inventories created, {present} already present")
     return 0
 
 
