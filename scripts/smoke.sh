@@ -71,6 +71,20 @@ wait_for_http() {
     return 1
 }
 
+refuse_if_running() {
+    local url=$1
+    local label=$2
+
+    if curl -fsS "$url" >/dev/null 2>&1; then
+        echo "$label already answers at $url. Stop it first: the smoke test would otherwise pass against an old build." >&2
+        exit 1
+    fi
+}
+
+refuse_if_running "http://${CATALOG_SERVICE_HOST:-127.0.0.1}:${CATALOG_SERVICE_PORT:-8081}/actuator/health" "catalog-service"
+refuse_if_running "http://${ORDER_SERVICE_HOST:-127.0.0.1}:${ORDER_SERVICE_PORT:-8082}/actuator/health" "order-service"
+refuse_if_running "http://${AGENT_SERVICE_HOST:-127.0.0.1}:${AGENT_SERVICE_PORT:-8000}/health" "agent-service"
+
 uv sync --locked --all-packages
 make check
 docker compose up -d --wait catalog-db order-db
