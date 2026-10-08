@@ -65,7 +65,7 @@ class _Session:
             try:
                 async with stdio_client(self._parameters) as (read, write):
                     async with ClientSession(read, write) as session:
-                        await session.initialize()
+                        await asyncio.wait_for(session.initialize(), self._start_timeout)
                         self._session = session
                         self._ready.set()
                         opened = True
