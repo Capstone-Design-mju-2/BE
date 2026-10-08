@@ -6,8 +6,12 @@ uv run --package agent-service python -m unittest discover -s services/agent-ser
 import asyncio
 import os
 import signal
+import stat
 import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from agent_service.tools import ToolError, _Session
 
@@ -93,6 +97,36 @@ class HungServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(fresh, stuck)
         self.assertTrue(gone(stuck))
         self.assertEqual(await self.session.call("health", {}), HEALTH)
+
+
+class ReopenHangTest(unittest.IsolatedAsyncioTestCase):
+    """A server that starts but never answers initialize while the session is being reopened."""
+
+    async def asyncSetUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.marker = Path(self.directory.name) / "hang"
+        wrapper = Path(self.directory.name) / "search-mcp-wrapper"
+        real = Path(sys.executable).parent / "search-mcp"
+        wrapper.write_text(f'#!/bin/sh\n[ -e "$MARKER" ] && exec sleep 3600\nexec {real}\n')
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
+        self.session = _Session(str(wrapper), {"MARKER": str(self.marker)}, start_timeout=2, call_timeout=2)
+        await self.session.start()
+
+    async def asyncTearDown(self):
+        await self.session.stop()
+        self.directory.cleanup()
+
+    async def test_재연결_중_초기화가_멈춰도_제한_시간_뒤_다시_시도해_복구한다(self):
+        self.marker.touch()
+        os.kill(children()[0], signal.SIGKILL)
+        asyncio.get_running_loop().call_later(3, self.marker.unlink)
+
+        with self.assertLogs(LOGGER, level="WARNING"):
+            result = await self.session.call("health", {})
+
+        self.assertEqual(result, HEALTH)
+        await self.session.stop()
+        self.assertEqual(children("sleep 3600"), [])
 
 
 class StartTest(unittest.IsolatedAsyncioTestCase):
