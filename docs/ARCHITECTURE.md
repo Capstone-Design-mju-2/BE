@@ -1,21 +1,8 @@
 # 아키텍처
 
-## 현재 구현 — Stage 0 골격
+## 현재 구현 — Stage 1B
 
-각 프로세스의 기동 경계와 독립 DB 연결만 구현되어 있다. 화살표가 없는 구성요소끼리는 아직 호출하지 않는다.
-
-```text
-[agent-service: health/config]
-[search-mcp: health tool]
-[inventory-mcp: health tool]
-
-[catalog-service] → [catalog DB]
-[order-service]   → [order DB]
-```
-
-상품, 리뷰, 주문, 재고 도메인과 agent→MCP→Spring 연결은 아직 구현하지 않는다.
-
-## Stage 1 목표 — 수직 기능
+agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄워 stdio 세션을 재사용한다(ADR-67, ADR-68). 세션이 끊기거나 호출이 제한 시간 안에 끝나지 않으면 세션을 다시 열고 한 번 재시도한다(ADR-69).
 
 ```text
 agent-service
@@ -23,7 +10,15 @@ agent-service
   └─ inventory-mcp → order-service   → order DB
 ```
 
-이 연결은 질문 입력에서 상품 검색과 재고 응답까지 이어지는 첫 시연 버전에서 구현한다.
+`POST /api/v1/chat`은 검색 결과의 `productId`로 재고를 확인해 카드를 만든다. `answer`는 고정 템플릿이고 `reason`은 `null`이다. 1C(LLM 도구 선택)는 아직 구현하지 않았다.
+
+데이터는 수집 스크립트가 만든 JSONL을 적재 스크립트가 서비스의 적재 API로 넣는다. 서비스를 거치지 않고 DB에 직접 쓰지 않는다.
+
+```text
+scripts/collect_musinsa.py → JSONL (.local/, 저장소 밖)
+scripts/load_catalog.py    → catalog-service  POST /internal/products/load
+scripts/seed_inventory.py  → order-service    POST /api/v1/internal/inventories/load
+```
 
 ## 데이터 소유
 

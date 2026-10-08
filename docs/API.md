@@ -5,7 +5,7 @@
 ## 공통 규칙
 
 - 모든 경로는 `/api/v1` 아래에 둔다.
-- `productId`는 우리 DB의 숫자 ID다. 무신사 상품번호는 `externalId`로 따로 저장하고 응답에 노출하지 않는다. 재수집해도 화면 계약이 깨지지 않게 한다.
+- `productId`는 우리 DB의 숫자 ID다. 무신사 상품번호는 `externalId`로 따로 저장하고 응답에 노출하지 않는다. 재수집해도 화면 계약이 깨지지 않게 한다. 최종 시연 모드(ADR-72)에서 무신사 상품 링크가 필요해지면 응답에 링크 필드를 추가한다. 아직 구현하지 않았다.
 - 금액은 원 단위 정수다.
 - 날짜는 `YYYY-MM-DD` 문자열이다.
 - 오류 응답은 HTTP 상태 코드와 아래 본문을 함께 쓴다.
@@ -101,6 +101,19 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 - `excerpt`는 80자를 넘기지 않는다. LLM 입력 토큰은 이 값에 비례한다.
 - 피부 타입 필터는 두지 않는다. "건성"은 리뷰 본문 키워드로 걸린다. 구조화 필터는 3단계 의미 검색과 비교한 뒤에 판단한다.
 
+### 상품·리뷰 적재 (수집기 전용)
+
+POST /internal/products/load
+
+수집한 상품 한 개와 그 리뷰를 적재한다. 쓰기 전용이다. 구현 시점의 예외로 공통 규칙의 `/api/v1` 접두사를 따르지 않는다.
+
+요청: `externalId`(무신사 상품번호), `name`, `brandName`, `categoryCode`, `normalPrice`, `price`, `reviewCount`, `reviewScore`, `collectedOn`, `reviews[]`. 리뷰는 `externalId`, `content`, `grade`, `likeCount`, `optionText`, `skinType`, `skinTone`, `gender`, 키·몸무게 구간, `writtenAt`, `survey`, `collectedOn`을 가진다.
+
+응답: `{ "productId": 101, "reviewCount": 285 }`
+
+- 상품은 `externalId`, 리뷰는 `(productId, externalId)`로 구분한다. 같은 요청을 여러 번 보내도 결과가 같다.
+- 별점이 없는 리뷰(`grade` 0)는 DB 제약(1~5)에 걸리므로 보내는 쪽에서 뺀다(ADR-65).
+
 ## 3. Inventory API
 
 ```text
@@ -146,7 +159,6 @@ POST /api/v1/internal/inventories/load
 요청
 
 {
-  "externalId": "musinsa-10294",
   "productId": 101,
   "options": [
     { "optionKey": "100ml", "name": "토너 100ml", "price": 15000, "quantity": 30 },
