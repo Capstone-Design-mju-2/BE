@@ -2,14 +2,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agent_service.config import settings
 from agent_service.extract import extract
 from agent_service.tools import McpTools, ToolError
 
 SEARCH_LIMIT = 5
+MAX_MESSAGE_LENGTH = 500
 NOT_FOUND_ANSWER = "조건에 맞는 상품을 찾지 못했습니다."
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 
@@ -25,7 +27,14 @@ app = FastAPI(title="Capstone Agent Service", version="0.1.0", lifespan=lifespan
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
+    return JSONResponse(status_code=400,
+                        content={"code": "INVALID_CHAT_REQUEST",
+                                 "message": f"message는 1자 이상 {MAX_MESSAGE_LENGTH}자 이하여야 합니다."})
 
 
 def get_tools(request: Request) -> McpTools:
