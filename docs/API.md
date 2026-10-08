@@ -29,6 +29,8 @@ POST /api/v1/chat
 { "message": "건성 피부에 끈적이지 않는 수분크림 중 내일 도착 가능하고 3만원 이하인 상품 추천해 줘" }
 ```
 
+`message`는 1자 이상 500자 이하다. 벗어나거나 없으면 400과 `{ "code": "INVALID_CHAT_REQUEST", "message": "..." }`를 반환한다.
+
 응답
 
 ```json

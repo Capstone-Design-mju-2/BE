@@ -14,6 +14,10 @@
 ('크림', 29999)
 >>> extract("스킨케어 추천해줘"), extract("젤리 같은 제형 말고")
 ((None, None), (None, None))
+>>> extract("토너 99999999999원 이하"), extract("토너 99999만원 이하")
+(('토너', None), ('토너', None))
+>>> extract("1.2.3만원 이하 토너"), extract("토너 " + "9" * 5000 + "원 이하")
+(('토너', None), ('토너', None))
 """
 
 import re
@@ -23,7 +27,9 @@ import re
 PRODUCT_TYPES = ["수분크림", "선크림", "크림", "토너", "세럼", "앰플", "에센스", "로션", "미스트", "패드"]
 EFFECTS = ["촉촉", "보습", "진정", "수분", "산뜻", "저자극", "트러블", "각질", "미백"]
 
-MAX_PRICE = re.compile(r"(\d+(?:[.,]\d+)*)\s*(만\s*)?원\s*(이하|까지|아래|미만|안쪽)")
+PRICE_LIMIT = 100_000_000
+# Digit counts are capped and a number cannot start inside a longer one, so absurd input never reaches int().
+MAX_PRICE = re.compile(r"(?<![\d.,])(\d{1,9}(?:[.,]\d{1,9}){0,3})\s*(만\s*)?원\s*(이하|까지|아래|미만|안쪽)")
 
 
 def extract(message: str) -> tuple[str | None, int | None]:
@@ -36,8 +42,13 @@ def _max_price(message: str) -> int | None:
     if not match:
         return None
     number, man, bound = match.groups()
-    if man:
-        price = round(float(number.replace(",", "")) * 10000)
-    else:
-        price = int(number.replace(",", "").replace(".", ""))
+    try:
+        if man:
+            price = round(float(number.replace(",", "")) * 10000)
+        else:
+            price = int(number.replace(",", "").replace(".", ""))
+    except ValueError:
+        return None
+    if price > PRICE_LIMIT:
+        return None
     return price - 1 if bound == "미만" else price
