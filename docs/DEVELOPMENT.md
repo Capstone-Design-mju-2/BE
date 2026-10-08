@@ -52,7 +52,7 @@ make run-order
 make run-agent
 ```
 
-MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 서버 프로세스가 죽으면 다음 호출이 세션을 다시 열고 한 번 재시도한다(ADR-69). 응답 없이 멈춘 서버는 감지하지 않는다. 도구만 단독으로 확인하려면 다음처럼 실행한다.
+MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 서버 프로세스가 죽으면 다음 호출이 세션을 다시 열고 한 번 재시도한다(ADR-69). 호출이 8초 안에 끝나지 않아도 같은 방식으로 세션을 다시 연다. 도구만 단독으로 확인하려면 다음처럼 실행한다.
 
 ```bash
 make run-search-mcp
@@ -77,6 +77,16 @@ Claude Desktop에 붙여 도구를 단독 시험하려면 `~/Library/Application
   }
 }
 ```
+
+수집과 적재는 스크립트로 한다. 수집한 JSONL은 `.local/` 아래에 두고 Git에 올리지 않는다.
+
+```bash
+uv run python scripts/collect_musinsa.py --category 104001 --products 25 --review-pages 3
+uv run python scripts/load_catalog.py .local/musinsa/104001-*.jsonl     # catalog-service가 떠 있어야 한다
+uv run python scripts/seed_inventory.py .local/musinsa/104001-*.jsonl   # catalog-service와 order-service가 떠 있어야 한다
+```
+
+적재 스크립트는 같은 파일을 다시 넣어도 결과가 같다. `load_catalog.py`는 별점이 없는 리뷰(`grade` 0)를 건너뛴다. `seed_inventory.py`는 상품마다 기본 옵션 1행의 재고를 만들고(리뷰 수 50 미만 3개, 50~999개 10개, 1000개 이상 30개) 이미 있는 재고의 수량은 바꾸지 않는다. `productId`를 얻으려고 상품을 catalog에 다시 보내므로 파일이 크면 리뷰를 다시 쓰는 시간이 든다.
 
 ## 5. 검증
 
