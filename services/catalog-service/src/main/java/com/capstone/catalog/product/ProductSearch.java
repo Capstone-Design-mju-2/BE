@@ -15,6 +15,7 @@ public class ProductSearch {
 
     static final int EXCERPT_LENGTH = 80;
     private static final int EXCERPT_LEAD = 20;
+    private static final Pattern SENTENCE_END = Pattern.compile("[.!?]\\s|\\n");
 
     // Products are ranked by how many reviews mention q. Name-only matches have no such
     // review, so their evidence falls back to the product's best reviews overall.
@@ -73,12 +74,36 @@ public class ProductSearch {
     }
 
     static String excerpt(String content, String q) {
-        String flat = content.strip().replaceAll("\\s+", " ");
-        int[] codePoints = flat.codePoints().toArray();
-        var match = Pattern.compile(Pattern.quote(q), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(flat);
-        int start = match.find() ? Math.max(0, flat.codePointCount(0, match.start()) - EXCERPT_LEAD) : 0;
-        int end = Math.min(codePoints.length, start + EXCERPT_LENGTH);
-        return new String(codePoints, start, end - start);
+        String text = content.strip().replaceAll("\\s*\\n\\s*", "\n").replaceAll("\\h+", " ");
+        var match = Pattern.compile(Pattern.quote(q), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(text);
+        if (!match.find()) {
+            return slice(text, 0, EXCERPT_LENGTH);
+        }
+        var sentenceEnd = SENTENCE_END.matcher(text).region(0, match.start());
+        int start = 0;
+        while (sentenceEnd.find()) {
+            start = sentenceEnd.end();
+        }
+        if (text.codePointCount(start, match.end()) <= EXCERPT_LENGTH) {
+            return slice(text, start, EXCERPT_LENGTH);
+        }
+        // The sentence is too long to show q from its start. Look back for a space only within
+        // EXCERPT_LEAD so q stays inside the excerpt.
+        int back = Math.min(EXCERPT_LEAD, text.codePointCount(start, match.start()));
+        int lead = text.offsetByCodePoints(match.start(), -back);
+        if (lead == start) {
+            return slice(text, start, EXCERPT_LENGTH);
+        }
+        int space = text.lastIndexOf(' ', lead - 1);
+        if (space >= start && text.codePointCount(space + 1, lead) < EXCERPT_LEAD) {
+            lead = space + 1;
+        }
+        return "…" + slice(text, lead, EXCERPT_LENGTH - 1);
+    }
+
+    private static String slice(String text, int from, int maxCodePoints) {
+        int length = Math.min(maxCodePoints, text.codePointCount(from, text.length()));
+        return text.substring(from, text.offsetByCodePoints(from, length)).replace('\n', ' ');
     }
 
     private static String escapeLike(String q) {
