@@ -1,10 +1,11 @@
-"""Create initial order inventory for loaded catalog products.
+"""Load initial option stock for catalog products through the order load API.
 
-Catalog has no list API, so each JSONL line is posted to the idempotent load API again
-to learn its productId. Only products the order service reports as NOT_FOUND are created,
-which makes reruns no-ops. Replace with the option/stock load API in week 6.
+Catalog has no list API, so each JSONL line is posted to the idempotent catalog load API
+to learn its productId. Each product gets one "default" option. The order load API is
+idempotent and never changes stock of existing options, so reruns are no-ops.
+To reset demo stock, use scripts/reset_demo_stock.sh.
 
-    uv run python scripts/seed_inventory.py .local/musinsa/104001-2026-09-30.jsonl
+    uv run python scripts/seed_inventory.py .local/musinsa/104001-2026-09-30.jsonl --sold-out 101,205
 """
 
 import argparse
@@ -13,7 +14,7 @@ import os
 import sys
 import urllib.request
 
-CHECK_BATCH = 20
+DEFAULT_OPTION = "default"
 
 
 def quantity(review_count: int) -> int:
@@ -26,6 +27,16 @@ def quantity(review_count: int) -> int:
     if review_count < 1000:
         return 10
     return 30
+
+
+def parse_ids(text: str) -> set[int]:
+    """
+    >>> sorted(parse_ids("101, 205,"))
+    [101, 205]
+    >>> parse_ids("")
+    set()
+    """
+    return {int(part) for part in text.split(",") if part.strip()}
 
 
 def post(url: str, body: dict | str) -> dict:
@@ -43,28 +54,31 @@ def base_url(service: str, default_port: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="+")
+    parser.add_argument("--sold-out", default="", help="comma-separated productIds seeded with quantity 0")
     args = parser.parse_args()
+    sold_out = parse_ids(args.sold_out)
     catalog, order = base_url("CATALOG", "8081"), base_url("ORDER", "8082")
 
-    review_counts = {}
+    inserted = updated = 0
     for path in args.files:
         with open(path, encoding="utf-8") as file:
             for line in file:
+                product = json.loads(line)
                 product_id = post(f"{catalog}/internal/products/load", line)["productId"]
-                review_counts[product_id] = json.loads(line)["reviewCount"]
+                if product.get("isSoldOut") or product_id in sold_out:
+                    stock = 0
+                else:
+                    stock = quantity(product["reviewCount"])
+                result = post(f"{order}/api/v1/internal/inventories/load", {
+                    "productId": product_id,
+                    "options": [{
+                        "optionKey": DEFAULT_OPTION,
+                        "name": product["name"],
+                        "price": product["price"],
+                        "quantity": stock,
+                    }],
+                })
+                inserted += result["inserted"]
+                updated += result["updated"]
 
-    ids = list(review_counts)
-    missing = []
-    for start in range(0, len(ids), CHECK_BATCH):
-        result = post(f"{order}/api/v1/inventories/check", {"productIds": ids[start:start + CHECK_BATCH]})
-        missing += [i["productId"] for i in result["inventories"] if i["status"] == "NOT_FOUND"]
-
-    for product_id in missing:
-        post(f"{order}/inventory", {"productId": product_id, "quantity": quantity(review_counts[product_id])})
-
-    print(f"{len(ids)} products, {len(missing)} inventories created, {len(ids) - len(missing)} already present")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    print(f"{inserted} options inserted, {updated} already present, sold out: {sorted(sold_out)}")
