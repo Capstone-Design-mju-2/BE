@@ -203,8 +203,8 @@ POST /api/v1/orders
 {
   "ordererKey": "demo",
   "items": [
-    { "productId": 101, "optionKey": "50ml", "quantity": 2 },
-    { "productId": 102, "optionKey": "21호", "quantity": 1 }
+    { "productId": 101, "optionKey": "11", "quantity": 2 },
+    { "productId": 102, "optionKey": "31", "quantity": 1 }
   ]
 }
 ```
@@ -216,8 +216,8 @@ POST /api/v1/orders
   "orderId": 1,
   "totalPrice": 51800,
   "items": [
-    { "productId": 101, "optionKey": "50ml", "name": "수분크림 A 50ml", "unitPrice": 12900, "quantity": 2 },
-    { "productId": 102, "optionKey": "21호", "name": "쿠션 B 21호", "unitPrice": 26000, "quantity": 1 }
+    { "productId": 101, "optionKey": "11", "name": "수분크림 A 50ml", "unitPrice": 12900, "quantity": 2 },
+    { "productId": 102, "optionKey": "31", "name": "쿠션 B 21호", "unitPrice": 26000, "quantity": 1 }
   ]
 }
 ```
@@ -236,7 +236,7 @@ POST /api/v1/orders
 {
   "code": "INSUFFICIENT_STOCK",
   "message": "주문할 수 없는 항목이 있습니다.",
-  "failedItem": { "productId": 101, "optionKey": "50ml", "requested": 5, "available": 2 }
+  "failedItem": { "productId": 101, "optionKey": "11", "requested": 5, "available": 2 }
 }
 ```
 
