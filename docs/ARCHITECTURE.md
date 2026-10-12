@@ -12,10 +12,11 @@ agent-service
 
 `POST /api/v1/chat`은 검색 결과의 `productId`로 재고를 확인해 카드를 만든다. `answer`는 고정 템플릿이고 `reason`은 `null`이다. 1C(LLM 도구 선택)는 아직 구현하지 않았다.
 
-데이터는 수집 스크립트가 만든 JSONL을 적재 스크립트가 서비스의 적재 API로 넣는다. 서비스를 거치지 않고 DB에 직접 쓰지 않는다.
+데이터는 수집 스크립트가 만든 JSONL을 적재 스크립트가 서비스의 적재 API로 넣는다. 서비스를 거치지 않고 DB에 직접 쓰지 않는다. 로컬 초기화용 make 타깃(`infra-reset`, `reset-inventory`)만 예외다.
 
 ```text
 scripts/collect_musinsa.py → JSONL (.local/, 저장소 밖)
+scripts/collect_options.py → JSONL (.local/, 저장소 밖)
 scripts/load_catalog.py    → catalog-service  POST /internal/products/load
 scripts/seed_inventory.py  → order-service    POST /api/v1/internal/inventories/load
 ```
