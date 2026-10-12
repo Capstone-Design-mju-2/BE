@@ -7,6 +7,8 @@ spring:
     password: ${ORDER_DB_PASSWORD:orders-local}
   flyway:
     enabled: true
+    # Flyway's default (*:future) lets a build older than the schema start and fail later on writes.
+    ignore-migration-patterns: "repeatable:future"
   jpa:
     hibernate:
       ddl-auto: validate

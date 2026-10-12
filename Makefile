@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: bootstrap dependencies-update build check smoke infra-up infra-down infra-reset run-catalog run-order run-agent run-search-mcp run-inventory-mcp
+.PHONY: bootstrap dependencies-update build check smoke infra-up infra-down infra-reset reset-inventory run-catalog run-order run-agent run-search-mcp run-inventory-mcp
 
 bootstrap:
 	./gradlew --version
@@ -25,7 +25,7 @@ check:
 	uv lock --check
 	uv run python -m compileall -q services/agent-service/src services/search-mcp/src services/inventory-mcp/src
 	uv run --package agent-service python -m unittest discover -s services/agent-service/tests
-	uv run python -m doctest services/agent-service/src/agent_service/extract.py scripts/seed_inventory.py
+	uv run python -m doctest services/agent-service/src/agent_service/extract.py scripts/seed_inventory.py scripts/collect_musinsa.py scripts/collect_options.py scripts/load_catalog.py
 
 smoke:
 	./scripts/smoke.sh
@@ -39,6 +39,10 @@ infra-down:
 infra-reset:
 	@test "$(CONFIRM)" = "1" || (echo "This deletes local database volumes. Re-run with CONFIRM=1." && exit 1)
 	docker compose down --volumes
+
+reset-inventory:
+	@test "$(CONFIRM)" = "1" || (echo "This empties the order inventory table, including quantities changed by orders. Re-run with CONFIRM=1." && exit 1)
+	docker compose exec -T order-db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "TRUNCATE inventory"'
 
 run-catalog:
 	./gradlew :services:catalog-service:bootRun

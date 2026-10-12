@@ -52,12 +52,42 @@ make run-order
 make run-agent
 ```
 
-MCP 서버는 stdio transport를 사용한다.
+MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 서버 프로세스가 죽으면 다음 호출이 세션을 다시 열고 한 번 재시도한다(ADR-69). 호출이 8초 안에 끝나지 않아도 같은 방식으로 세션을 다시 연다. 도구만 단독으로 확인하려면 다음처럼 실행한다.
 
 ```bash
 make run-search-mcp
 make run-inventory-mcp
 ```
+
+Claude Desktop에 붙여 도구를 단독 시험하려면 `~/Library/Application Support/Claude/claude_desktop_config.json`에 다음을 추가하고 앱을 다시 시작한다. GUI 앱은 셸의 PATH를 받지 않으므로 `uv`가 아니라 `.venv/bin`의 절대 경로를 쓴다. catalog-service와 order-service가 떠 있어야 도구가 동작한다.
+
+```json
+{
+  "mcpServers": {
+    "search-mcp": {
+      "command": "/절대/경로/BE/.venv/bin/search-mcp",
+      "args": [],
+      "env": { "CATALOG_SERVICE_URL": "http://127.0.0.1:8081" }
+    },
+    "inventory-mcp": {
+      "command": "/절대/경로/BE/.venv/bin/inventory-mcp",
+      "args": [],
+      "env": { "ORDER_SERVICE_URL": "http://127.0.0.1:8082" }
+    }
+  }
+}
+```
+
+수집과 적재는 스크립트로 한다. 수집한 JSONL은 `.local/` 아래에 두고 Git에 올리지 않는다.
+
+```bash
+uv run python scripts/collect_musinsa.py --category 104001 --products 25 --review-pages 3
+uv run python scripts/collect_options.py .local/musinsa/104001-*.jsonl  # 상품 옵션(SKU) 목록
+uv run python scripts/load_catalog.py .local/musinsa/104001-*.jsonl     # catalog-service가 떠 있어야 한다
+uv run python scripts/seed_inventory.py .local/musinsa/104001-*.jsonl   # catalog-service와 order-service가 떠 있어야 한다
+```
+
+적재 스크립트는 같은 파일을 다시 넣어도 결과가 같다. `load_catalog.py`는 별점이 없는 리뷰(`grade` 0)를 건너뛴다. `seed_inventory.py`는 무신사 옵션(SKU)마다 재고 1행을 만든다. 수량은 그 옵션을 적은 리뷰 수로 정하고(0개는 품절, 50 미만 3개, 50~999개 10개, 1000개 이상 30개), 두 개를 고르는 세트 상품은 두 값 중 리뷰가 적은 쪽으로, 옵션이 없는 상품은 상품 리뷰 수로 정한다. 이미 있는 재고의 수량은 바꾸지 않으므로 규칙을 바꿔 다시 넣으려면 먼저 `make reset-inventory CONFIRM=1`로 재고 테이블을 비운다. 주문으로 바뀐 수량도 함께 지워진다. `productId`를 얻으려고 상품을 catalog에 다시 보내므로 파일이 크면 리뷰를 다시 쓰는 시간이 든다.
 
 ## 5. 검증
 
@@ -74,6 +104,8 @@ make smoke
 ```
 
 스모크는 프로세스와 컨테이너를 항상 정리하되 DB volume은 보존한다.
+
+개발용 서비스가 8081, 8082, 8000에서 이미 떠 있으면 스모크는 옛 빌드를 검사하게 되므로 시작 전에 중단한다. 먼저 그 서비스를 내려야 한다. catalog-service와 order-service는 DB에 코드가 모르는 마이그레이션이 적용돼 있으면 기동을 거부한다(코드보다 앞선 스키마에 옛 빌드가 쓰기를 시도하는 사고를 막으려는 것이다).
 
 ## 6. 의존성 갱신
 

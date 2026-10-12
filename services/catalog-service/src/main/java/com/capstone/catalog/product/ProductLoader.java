@@ -29,8 +29,8 @@ public class ProductLoader {
                                  skin_tone, gender, height_min_cm, height_max_cm, weight_min_kg, weight_max_kg,
                                  written_at, collected_on)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (external_id) DO UPDATE SET
-                product_id = EXCLUDED.product_id, content = EXCLUDED.content, grade = EXCLUDED.grade,
+            ON CONFLICT (product_id, external_id) DO UPDATE SET
+                content = EXCLUDED.content, grade = EXCLUDED.grade,
                 like_count = EXCLUDED.like_count, option_text = EXCLUDED.option_text,
                 skin_type = EXCLUDED.skin_type, skin_tone = EXCLUDED.skin_tone, gender = EXCLUDED.gender,
                 height_min_cm = EXCLUDED.height_min_cm, height_max_cm = EXCLUDED.height_max_cm,
@@ -41,12 +41,12 @@ public class ProductLoader {
     // Only reviews in this payload: a review missing from a recollection keeps its answers.
     private static final String DELETE_SURVEY_ANSWERS = """
             DELETE FROM review_survey_answers
-            WHERE review_id = (SELECT id FROM reviews WHERE external_id = ?)
+            WHERE review_id = (SELECT id FROM reviews WHERE product_id = ? AND external_id = ?)
             """;
 
     private static final String INSERT_SURVEY_ANSWER = """
             INSERT INTO review_survey_answers (review_id, attribute, answer)
-            SELECT id, ?, ? FROM reviews WHERE external_id = ?
+            SELECT id, ?, ? FROM reviews WHERE product_id = ? AND external_id = ?
             ON CONFLICT DO NOTHING
             """;
 
@@ -69,13 +69,13 @@ public class ProductLoader {
                 .toList());
 
         jdbcTemplate.batchUpdate(DELETE_SURVEY_ANSWERS, p.reviews().stream()
-                .map(r -> new Object[] {r.externalId()})
+                .map(r -> new Object[] {productId, r.externalId()})
                 .toList());
-        jdbcTemplate.batchUpdate(INSERT_SURVEY_ANSWER, surveyAnswers(p.reviews()));
+        jdbcTemplate.batchUpdate(INSERT_SURVEY_ANSWER, surveyAnswers(productId, p.reviews()));
         return productId;
     }
 
-    private static List<Object[]> surveyAnswers(List<Review> reviews) {
+    private static List<Object[]> surveyAnswers(long productId, List<Review> reviews) {
         var rows = new ArrayList<Object[]>();
         for (var review : reviews) {
             if (review.survey() == null || review.survey().questions() == null) {
@@ -86,7 +86,8 @@ public class ProductLoader {
                     continue;
                 }
                 for (var answer : question.answers()) {
-                    rows.add(new Object[] {question.attribute(), answer.answerShortText(), review.externalId()});
+                    rows.add(new Object[] {question.attribute(), answer.answerShortText(), productId,
+                            review.externalId()});
                 }
             }
         }

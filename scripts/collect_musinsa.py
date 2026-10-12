@@ -40,7 +40,7 @@ class Client:
         wait = REQUEST_INTERVAL_SECONDS - (time.monotonic() - self.last_request_at)
         if wait > 0:
             time.sleep(wait)
-        full_url = f"{url}?{urllib.parse.urlencode(params)}"
+        full_url = f"{url}?{urllib.parse.urlencode(params)}" if params else url
         request = urllib.request.Request(full_url, headers={"User-Agent": "Mozilla/5.0"})
         self.last_request_at = time.monotonic()
         self.request_count += 1
@@ -114,18 +114,21 @@ def to_product(raw: dict, category: str, collected_on: str) -> dict:
 
 
 def list_products(client: Client, category: str, count: int) -> list[dict]:
-    products, seen, page = [], set(), 1
+    products, seen = [], set()
+    url, params = LIST_URL, {"category": category, "sortCode": "POPULAR", "page": 1,
+                             "size": 60, "caller": "CATEGORY", "gf": "A"}
     while len(products) < count:
-        body = client.get(LIST_URL, {"category": category, "sortCode": "POPULAR", "page": page,
-                                     "size": 60, "caller": "CATEGORY", "gf": "A"})
+        body = client.get(url, params)
         items = body["data"]["list"]
         for item in items:
             if item["goodsNo"] not in seen and item["reviewCount"] > 0:
                 seen.add(item["goodsNo"])
                 products.append(item)
-        if not body["data"]["pagination"]["hasNext"] or not items:
+        pagination = body["data"]["pagination"]
+        if not pagination["hasNext"] or not items:
             break
-        page += 1
+        # The API signs the next page (hmacId); a self-built page=N is rejected with 403.
+        url, params = pagination["nextPageUrl"], {}
     return products[:count]
 
 
@@ -143,6 +146,26 @@ def list_reviews(client: Client, goods_no: int, pages: int) -> list[dict]:
     return reviews
 
 
+def read_done(part: Path) -> set:
+    """externalIds already in a .part file; a torn last line is cut off.
+
+    >>> import tempfile
+    >>> part = Path(tempfile.mkdtemp()) / "x.part"
+    >>> read_done(part)
+    set()
+    >>> _ = part.write_text('{"externalId": 1, "t": "a\\u2028b"}\\n{"externalId": 2}\\n{"externalI')
+    >>> sorted(read_done(part)), part.read_text().count("\\n")
+    ([1, 2], 2)
+    """
+    if not part.exists():
+        return set()
+    text = part.read_text(encoding="utf-8")
+    complete = text[:text.rfind("\n") + 1]
+    if complete != text:
+        part.write_text(complete, encoding="utf-8")
+    return {json.loads(line)["externalId"] for line in complete.split("\n") if line}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--category", default="104001")
@@ -152,16 +175,22 @@ def main() -> int:
     args = parser.parse_args()
 
     collected_on = dt.date.today().isoformat()
-    out = Path(args.out_dir) / f"{args.category}-{collected_on}.jsonl"
-    part = out.with_name(out.name + ".part")
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # A rerun after a stop may fall on a later day than the leftover .part, which is still resumed.
+    started = sorted(out_dir.glob(f"{args.category}-*.jsonl.part"))
+    part = started[-1] if started else out_dir / f"{args.category}-{collected_on}.jsonl.part"
+    out = part.with_suffix("")
     client = Client()
 
-    written = 0
+    done = read_done(part)
+    written = len(done)
     try:
         products = list_products(client, args.category, args.products)
-        with part.open("w", encoding="utf-8") as file:
+        with part.open("a", encoding="utf-8") as file:
             for raw in products:
+                if raw["goodsNo"] in done:
+                    continue
                 product = to_product(raw, args.category, collected_on)
                 product["reviews"] = [to_review(r, collected_on)
                                       for r in list_reviews(client, raw["goodsNo"], args.review_pages)]

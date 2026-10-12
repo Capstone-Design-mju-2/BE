@@ -11,6 +11,16 @@ import urllib.error
 import urllib.request
 
 
+def drop_unrated(product: dict) -> tuple[dict, int]:
+    """reviews.grade is CHECK 1..5, but Musinsa sends 0 for reviews without a star rating (ADR-65).
+
+    >>> drop_unrated({"reviews": [{"grade": 0}, {"grade": 4}]})
+    ({'reviews': [{'grade': 4}]}, 1)
+    """
+    rated = [r for r in product["reviews"] if r["grade"] >= 1]
+    return {**product, "reviews": rated}, len(product["reviews"]) - len(rated)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="+")
@@ -18,11 +28,14 @@ def main() -> int:
         os.getenv("CATALOG_SERVICE_HOST", "127.0.0.1"), os.getenv("CATALOG_SERVICE_PORT", "8081")))
     args = parser.parse_args()
 
-    products = reviews = 0
+    products = reviews = skipped = 0
     for path in args.files:
         with open(path, encoding="utf-8") as file:
             for line in file:
-                request = urllib.request.Request(f"{args.base_url}/internal/products/load", data=line.encode(),
+                product, dropped = drop_unrated(json.loads(line))
+                skipped += dropped
+                request = urllib.request.Request(f"{args.base_url}/internal/products/load",
+                                                 data=json.dumps(product, ensure_ascii=False).encode(),
                                                  headers={"Content-Type": "application/json"})
                 try:
                     with urllib.request.urlopen(request, timeout=30) as response:
@@ -32,7 +45,7 @@ def main() -> int:
                     return 1
                 products += 1
 
-    print(f"loaded {products} products, {reviews} reviews")
+    print(f"loaded {products} products, {reviews} reviews, skipped {skipped} unrated reviews")
     return 0
 
 

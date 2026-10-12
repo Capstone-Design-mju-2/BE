@@ -6,7 +6,7 @@
 
 ## 현재 단계
 
-Stage 0 개발환경과 독립 실행 가능한 서비스 골격만 포함한다. agent→MCP→Spring 연결과 도메인 기능은 Stage 1에서 구현한다.
+Stage 1B까지 구현했다. agent-service가 `search-mcp`와 `inventory-mcp`를 stdio로 호출해 catalog-service의 검색 결과와 order-service의 재고를 합친 응답을 만든다(`POST /api/v1/chat`). LLM이 도구를 고르는 1C와 이후 단계(검색 측정, OpenSearch, Outbox·CDC, 재고 동시성, Gateway)는 아직 구현하지 않았다.
 
 - Java 21 / Spring Boot 4.1.1
 - Python 3.11 / uv workspace

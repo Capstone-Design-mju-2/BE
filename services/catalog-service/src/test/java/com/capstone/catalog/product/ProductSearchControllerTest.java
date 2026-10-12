@@ -101,6 +101,26 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void excerpt는_q가_든_문장_처음부터_보여준다() {
+        String review = "타사 제품을 사용하다가 독도 클렌져, 로션 등을 사용하며 만족하여 수분크림도 구매해봤는데 역시나 자극 없이 잘 발리고 수분감도 적당했어요.";
+        assertThat(ProductSearch.excerpt(review, "수분크림")).startsWith("타사 제품을 사용하다가");
+
+        String twoLines = "행사덕에 저렴하게 구매할 수 있어서 좋았어요\n올인원을 써보고 수분크림도 좋겠지하고 구매해봤는데 만족합니다";
+        assertThat(ProductSearch.excerpt(twoLines, "수분크림")).isEqualTo("올인원을 써보고 수분크림도 좋겠지하고 구매해봤는데 만족합니다");
+
+        assertThat(ProductSearch.excerpt("배송이 빨라요. 수분크림 발림성이 좋아요", "수분크림")).isEqualTo("수분크림 발림성이 좋아요");
+
+        String longSentence = "정말 ".repeat(40) + "수분크림 좋아요";
+        String excerpt = ProductSearch.excerpt(longSentence, "수분크림");
+        assertThat(excerpt).startsWith("…정말 ").contains("수분크림");
+        assertThat(excerpt.codePointCount(0, excerpt.length())).isLessThanOrEqualTo(80);
+
+        String lead = "가나다라마 ".repeat(3);
+        String longQ = "하".repeat(70);
+        assertThat(ProductSearch.excerpt(lead + longQ, longQ)).startsWith(lead);
+    }
+
+    @Test
     void limit보다_많이_반환하지_않고_잘못된_요청은_400이다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "요").param("limit", "2"))
                 .andExpect(jsonPath("$.products", hasSize(lessThanOrEqualTo(2))));
