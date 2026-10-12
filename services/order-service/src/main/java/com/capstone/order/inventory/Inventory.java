@@ -46,4 +46,8 @@ public class Inventory {
         this.name = name;
         this.price = price;
     }
+
+    public void decrease(int amount) {
+        this.quantity -= amount;
+    }
 }

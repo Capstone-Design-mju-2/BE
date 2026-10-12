@@ -9,17 +9,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.capstone.order.inventory.Inventory;
-import com.capstone.order.inventory.InventoryRepository;
-import com.capstone.order.order.OrderFailedException.Reason;
 
 @Service
 public class OrderService {
 
-    private final InventoryRepository inventoryRepository;
+    private final StockDecreaser stockDecreaser;
     private final OrderRepository orderRepository;
 
-    public OrderService(InventoryRepository inventoryRepository, OrderRepository orderRepository) {
-        this.inventoryRepository = inventoryRepository;
+    public OrderService(StockDecreaser stockDecreaser, OrderRepository orderRepository) {
+        this.stockDecreaser = stockDecreaser;
         this.orderRepository = orderRepository;
     }
 
@@ -34,19 +32,8 @@ public class OrderService {
         Order order = new Order(ordererKey);
         for (Map.Entry<ItemKey, Integer> entry : merged.entrySet()) {
             ItemKey key = entry.getKey();
-            int qty = entry.getValue();
-
-            int updated = inventoryRepository.decreaseIfEnough(key.productId(), key.optionKey(), qty);
-            Inventory inventory = inventoryRepository
-                    .findByProductIdAndOptionKey(key.productId(), key.optionKey())
-                    .orElseThrow(() -> new OrderFailedException(
-                            Reason.OPTION_NOT_FOUND, key.productId(), key.optionKey(), qty, 0));
-
-            if (updated == 0) {
-                Reason reason = inventory.getQuantity() == 0 ? Reason.OUT_OF_STOCK : Reason.INSUFFICIENT_STOCK;
-                throw new OrderFailedException(reason, key.productId(), key.optionKey(), qty, inventory.getQuantity());
-            }
-            order.addItem(inventory, qty);
+            Inventory inventory = stockDecreaser.decrease(key.productId(), key.optionKey(), entry.getValue());
+            order.addItem(inventory, entry.getValue());
         }
 
         return OrderResult.from(orderRepository.save(order));
