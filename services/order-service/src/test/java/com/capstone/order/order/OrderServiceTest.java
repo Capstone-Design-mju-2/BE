@@ -44,12 +44,12 @@ class OrderServiceTest {
     @Test
     void 한_항목이라도_부족하면_전부_롤백한다() {
         assertThatThrownBy(() -> orderService.place("demo", List.of(
-                new ItemInput(1L, "50ml", 2),
-                new ItemInput(1L, "100ml", 3))))
+                new ItemInput(1L, "100ml", 1),
+                new ItemInput(1L, "50ml", 6))))
                 .isInstanceOf(OrderFailedException.class)
                 .extracting("reason").isEqualTo(OrderFailedException.Reason.INSUFFICIENT_STOCK);
 
-        assertThat(stock("50ml")).isEqualTo(5);
+        assertThat(stock("100ml")).isEqualTo(1);
         assertThat(orderRepository.count()).isZero();
     }
 

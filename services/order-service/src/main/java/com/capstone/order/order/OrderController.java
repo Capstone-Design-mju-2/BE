@@ -2,6 +2,7 @@ package com.capstone.order.order;
 
 import java.util.List;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -52,13 +53,13 @@ public class OrderController {
     }
 
     public record CreateOrderRequest(
-            @NotBlank String ordererKey,
+            @NotBlank @Size(max = 100) String ordererKey,
             @NotNull @Size(min = 1, max = 20) List<@Valid ItemRequest> items) {}
 
     public record ItemRequest(
             @NotNull Long productId,
-            @NotNull String optionKey,
-            @NotNull @Positive Integer quantity) {}
+            @NotNull @Size(max = 100) String optionKey,
+            @NotNull @Positive @Max(99) Integer quantity) {}
 
     public record OrderFailedResponse(String code, String message, FailedItem failedItem) {}
 
