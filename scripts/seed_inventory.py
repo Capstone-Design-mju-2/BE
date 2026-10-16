@@ -5,7 +5,10 @@ to learn its productId. Options come from collect_options.py. The order load API
 quantity of an existing option alone, which makes reruns no-ops; empty the table first
 (make reset-inventory CONFIRM=1) to apply new quantities.
 
-    uv run python scripts/seed_inventory.py .local/musinsa/104001-2026-09-30.jsonl
+--sold-out takes Musinsa externalIds (stable across machines, unlike productId) and seeds every
+option of those products with quantity 0, so the demo question shows a sold-out product.
+
+    uv run python scripts/seed_inventory.py .local/musinsa/1040*.jsonl --sold-out 2134641  # demo: "수분크림" 2위 상품
 """
 
 import argparse
@@ -31,6 +34,16 @@ def quantity(review_count: int) -> int:
     if review_count < 1000:
         return 10
     return 30
+
+
+def parse_ids(text: str) -> set[str]:
+    """
+    >>> sorted(parse_ids("5816625, 7037374,"))
+    ['5816625', '7037374']
+    >>> parse_ids("")
+    set()
+    """
+    return {part.strip() for part in text.split(",") if part.strip()}
 
 
 def norm(text: str) -> str:
@@ -97,7 +110,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="+")
     parser.add_argument("--options", default=".local/musinsa/options/options.jsonl")
+    parser.add_argument("--sold-out", default="",
+                        help="comma-separated Musinsa externalIds whose options are all seeded with quantity 0")
     args = parser.parse_args()
+    forced = parse_ids(args.sold_out)
     catalog, order = base_url("CATALOG", "8081"), base_url("ORDER", "8082")
     with open(args.options, encoding="utf-8") as file:
         options = {record["externalId"]: record for record in map(json.loads, file)}
@@ -112,6 +128,8 @@ def main() -> int:
                     return 1
                 product_id = post(f"{catalog}/internal/products/load", product)["productId"]
                 rows = sku_options(product, options[product["externalId"]])
+                if str(product["externalId"]) in forced:
+                    rows = [{**row, "quantity": 0} for row in rows]
                 # The load API accepts at most 50 options per request.
                 for start in range(0, len(rows), LOAD_BATCH):
                     result = post(f"{order}/api/v1/internal/inventories/load",
@@ -122,7 +140,7 @@ def main() -> int:
                 sold_out += sum(1 for row in rows if row["quantity"] == 0)
 
     print(f"{products} products, {created} inventories created, {present} already present, "
-          f"{sold_out} sold out as sent")
+          f"{sold_out} sold out as sent, forced sold out: {sorted(forced)}")
     return 0
 
 
