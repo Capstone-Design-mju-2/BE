@@ -6,9 +6,15 @@ import com.capstone.order.inventory.InventoryRepository;
 public class NoLockStockDecreaser implements StockDecreaser {
 
     private final InventoryRepository inventoryRepository;
+    private final Runnable afterCheck;
 
     public NoLockStockDecreaser(InventoryRepository inventoryRepository) {
+        this(inventoryRepository, () -> {});
+    }
+
+    NoLockStockDecreaser(InventoryRepository inventoryRepository, Runnable afterCheck) {
         this.inventoryRepository = inventoryRepository;
+        this.afterCheck = afterCheck;
     }
 
     @Override
@@ -18,6 +24,7 @@ public class NoLockStockDecreaser implements StockDecreaser {
         if (inventory.getQuantity() < quantity) {
             throw OrderFailedException.shortage(inventory, quantity);
         }
+        afterCheck.run();
         inventory.decrease(quantity);
         return inventory;
     }
