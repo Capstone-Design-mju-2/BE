@@ -114,6 +114,7 @@ def main() -> int:
                         help="comma-separated Musinsa externalIds whose options are all seeded with quantity 0")
     args = parser.parse_args()
     forced = parse_ids(args.sold_out)
+    matched = set()
     catalog, order = base_url("CATALOG", "8081"), base_url("ORDER", "8082")
     with open(args.options, encoding="utf-8") as file:
         options = {record["externalId"]: record for record in map(json.loads, file)}
@@ -130,6 +131,7 @@ def main() -> int:
                 rows = sku_options(product, options[product["externalId"]])
                 if str(product["externalId"]) in forced:
                     rows = [{**row, "quantity": 0} for row in rows]
+                    matched.add(str(product["externalId"]))
                 # The load API accepts at most 50 options per request.
                 for start in range(0, len(rows), LOAD_BATCH):
                     result = post(f"{order}/api/v1/internal/inventories/load",
@@ -138,6 +140,10 @@ def main() -> int:
                     present += result["updated"]
                 products += 1
                 sold_out += sum(1 for row in rows if row["quantity"] == 0)
+
+    if forced - matched:
+        print(f"--sold-out ids not found: {sorted(forced - matched)}", file=sys.stderr)
+        return 1
 
     print(f"{products} products, {created} inventories created, {present} already present, "
           f"{sold_out} sold out as sent, forced sold out: {sorted(forced)}")
