@@ -138,6 +138,22 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void category와_brand가_다른_상품은_빠진다() throws Exception {
+        jdbcTemplate.update("UPDATE products SET category_code = '104002' WHERE id = 3");
+        jdbcTemplate.update("UPDATE products SET brand_name = '라운드랩' WHERE id = 2");
+
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("category", "104001"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(2, 1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("brand", "라운드랩"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(2)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("brand", " "))
+                .andExpect(jsonPath("$.products", hasSize(3)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("category", "스킨케어"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SEARCH_REQUEST"));
+    }
+
+    @Test
     void 퍼센트와_밑줄은_와일드카드가_아니라_글자로_찾는다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "%"))
                 .andExpect(jsonPath("$.products").isEmpty());

@@ -19,19 +19,23 @@ public class ProductSearch {
 
     // Products are ranked by how many reviews mention q. Name-only matches have no such
     // review, so their evidence falls back to the product's best reviews overall.
+    // Matching reviews are found in one pass and grouped; counting per product re-reads all reviews for every product.
     private static final String SEARCH = """
-            WITH matched AS (
-                SELECT p.id, p.name, p.brand_name, p.price, p.review_count,
-                       (SELECT count(*) FROM reviews r
-                        WHERE r.product_id = p.id AND r.content ILIKE :pattern) AS hits,
-                       p.name ILIKE :pattern AS name_hit
-                FROM products p
-                WHERE CAST(:maxPrice AS integer) IS NULL OR p.price <= :maxPrice
+            WITH hits AS (
+                SELECT r.product_id, count(*) AS hits
+                FROM reviews r
+                WHERE r.content ILIKE :pattern
+                GROUP BY r.product_id
             ), candidates AS (
-                SELECT * FROM matched m
-                WHERE (m.hits > 0 OR m.name_hit)
-                  AND EXISTS (SELECT 1 FROM reviews r WHERE r.product_id = m.id)
-                ORDER BY m.hits DESC, m.review_count DESC, m.id
+                SELECT p.id, p.name, p.brand_name, p.price, p.review_count, coalesce(h.hits, 0) AS hits
+                FROM products p
+                LEFT JOIN hits h ON h.product_id = p.id
+                WHERE (CAST(:maxPrice AS integer) IS NULL OR p.price <= :maxPrice)
+                  AND (CAST(:category AS text) IS NULL OR p.category_code = :category)
+                  AND (CAST(:brand AS text) IS NULL OR p.brand_name = :brand)
+                  AND (h.hits IS NOT NULL OR p.name ILIKE :pattern)
+                  AND EXISTS (SELECT 1 FROM reviews r WHERE r.product_id = p.id)
+                ORDER BY hits DESC, p.review_count DESC, p.id
                 LIMIT :limit
             )
             SELECT c.id, c.name, c.brand_name, c.price, e.review_id, e.grade, e.content
@@ -52,10 +56,12 @@ public class ProductSearch {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<Product> search(String q, Integer maxPrice, int limit) {
+    public List<Product> search(String q, Integer maxPrice, String category, String brand, int limit) {
         var params = new MapSqlParameterSource()
                 .addValue("pattern", "%" + escapeLike(q) + "%")
                 .addValue("maxPrice", maxPrice)
+                .addValue("category", category)
+                .addValue("brand", brand)
                 .addValue("limit", limit);
 
         Map<Long, Product> products = new LinkedHashMap<>();

@@ -1,10 +1,15 @@
 """uv run --package agent-service python -m unittest discover -s services/agent-service/tests"""
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from agent_service.main import app, get_tools
+from agent_service import agent
+from agent_service.llm import LlmError
+from agent_service.main import app, get_llm, get_tools
 from agent_service.tools import ToolError
 
 MESSAGE = "건성 피부에 끈적이지 않는 수분크림 중 3만원 이하인 상품 추천해 줘"
@@ -42,10 +47,44 @@ class FakeTools:
             raise ToolError("check_inventory could not be called")
         return self.inventory
 
+    definitions = []
 
-def serve(search=None, inventory=None):
+    async def call(self, name, arguments):
+        if name == "search_products":
+            return await self.search_products(arguments["q"], arguments.get("max_price"), arguments.get("limit", 5))
+        if name == "check_inventory":
+            return await self.check_inventory(arguments["product_ids"])
+        raise ToolError(f"{name} is not a tool")
+
+
+class FakeLlm:
+    """Plays back assistant messages in order; an exception in the script is raised instead."""
+
+    def __init__(self, *replies):
+        self.replies = list(replies)
+        self.requests = []
+
+    async def complete(self, messages, tools):
+        self.requests.append(list(messages))
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply, {"total_tokens": 100}
+
+
+def tool_call(name, arguments):
+    return {"role": "assistant", "content": None, "tool_calls": [
+        {"id": f"call-{name}", "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}]}
+
+
+def final(answer, reasons):
+    return {"role": "assistant", "content": json.dumps({"answer": answer, "reasons": reasons}, ensure_ascii=False)}
+
+
+def serve(search=None, inventory=None, llm=None):
     tools = FakeTools(search, inventory)
     app.dependency_overrides[get_tools] = lambda: tools
+    app.dependency_overrides[get_llm] = lambda: llm
     return tools
 
 
@@ -112,6 +151,103 @@ class ChatTest(unittest.TestCase):
 
         self.assertEqual(self.chat("토너 99999999999원 이하").status_code, 200)
         self.assertEqual(tools.calls[0], ("search_products", "토너", None, 5))
+
+
+class LlmChatTest(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        self.trace_dir = tempfile.TemporaryDirectory()
+        self.original_trace_path = agent.TRACE_PATH
+        agent.TRACE_PATH = Path(self.trace_dir.name) / "chat-trace.jsonl"
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+        agent.TRACE_PATH = self.original_trace_path
+        self.trace_dir.cleanup()
+
+    def chat(self, message=MESSAGE):
+        return self.client.post("/api/v1/chat", json={"message": message})
+
+    def traces(self):
+        return [json.loads(line) for line in agent.TRACE_PATH.read_text(encoding="utf-8").splitlines()]
+
+    def test_LLM이_검색과_재고를_부르면_answer와_reason이_채워지고_NOT_FOUND는_빠진다(self):
+        tools = serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products", {"q": "수분크림", "max_price": 30000, "limit": 20}),
+            tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+            final("촉촉한 수분크림 두 개를 골랐어요.", {"1": "촉촉하다는 리뷰가 있어요.", "2": "무난하다는 평이에요."})))
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "촉촉한 수분크림 두 개를 골랐어요.")
+        self.assertEqual([(p["productId"], p["reason"], p["inventory"]["status"]) for p in body["products"]],
+                         [(1, "촉촉하다는 리뷰가 있어요.", "IN_STOCK"), (2, "무난하다는 평이에요.", "OUT_OF_STOCK")])
+        self.assertEqual(tools.calls, [("search_products", "수분크림", 30000, 5), ("check_inventory", [1, 2, 3])])
+        trace = self.traces()[-1]
+        self.assertEqual(trace["reasons"]["1"]["evidence"], SEARCH["products"][0]["evidence"])
+        self.assertNotIn("error", trace)
+
+    def test_LLM이_재고를_안_부르면_재고는_전부_UNKNOWN이다(self):
+        tools = serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products", {"q": "수분크림"}),
+            final("세 개 찾았어요.", {})))
+        body = self.chat().json()
+
+        self.assertEqual({p["inventory"]["status"] for p in body["products"]}, {"UNKNOWN"})
+        self.assertEqual([p["reason"] for p in body["products"]], [None, None, None])
+        self.assertEqual([call[0] for call in tools.calls], ["search_products"])
+
+    def test_검색_결과에_없는_상품의_reason은_버린다(self):
+        serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products", {"q": "수분크림"}),
+            tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+            final("찾았어요.", {"1": "촉촉해요.", "99": "없는 상품"})))
+        body = self.chat().json()
+
+        self.assertEqual([p["productId"] for p in body["products"]], [1, 2])
+        self.assertEqual([p["reason"] for p in body["products"]], ["촉촉해요.", None])
+        self.assertFalse(self.traces()[-1]["reasons"]["99"]["inSearch"])
+
+    def test_도구_이름에_붙은_채널_표시는_떼고_부른다(self):
+        tools = serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products<|channel|>commentary", {"q": "수분크림"}),
+            final("세 개 찾았어요.", {})))
+        body = self.chat().json()
+
+        self.assertEqual(len(body["products"]), 3)
+        self.assertEqual([call[0] for call in tools.calls], ["search_products"])
+
+    def test_도구_오류는_LLM에게_돌려주고_LLM이_이어서_답한다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+                      final("재고는 확인하지 못했어요.", {}))
+        serve(SEARCH, None, llm)
+        body = self.chat().json()
+
+        self.assertEqual({p["inventory"]["status"] for p in body["products"]}, {"UNKNOWN"})
+        self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
+
+    def test_LLM이_실패하면_1B_규칙으로_답한다(self):
+        for label, llm in (("API 오류", FakeLlm(LlmError("429"))),
+                           ("JSON 아닌 답", FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                                                   {"role": "assistant", "content": "수분크림 추천해요"}))):
+            with self.subTest(label):
+                tools = serve(SEARCH, INVENTORY, llm)
+                body = self.chat().json()
+
+                self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+                self.assertTrue(all(p["reason"] is None for p in body["products"]))
+                self.assertEqual(tools.calls[-2:], [("search_products", "수분크림", 30000, 5),
+                                                    ("check_inventory", [1, 2, 3])])
+                self.assertIn("error", self.traces()[-1])
+
+    def test_LLM_경로에서_catalog가_내려가면_1B도_실패해_오류_본문을_반환한다(self):
+        tools = serve(None, INVENTORY, FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                                                final("검색이 안 돼요.", {})))
+        response = self.chat()
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json()["code"], "PRODUCT_SEARCH_FAILED")
+        self.assertEqual([call[0] for call in tools.calls], ["search_products", "search_products"])
 
 
 if __name__ == "__main__":
