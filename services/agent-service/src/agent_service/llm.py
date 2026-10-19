@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import httpx
@@ -20,11 +21,12 @@ class Llm:
                        tools: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
         """Return the assistant message and the token usage."""
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
+            # httpx timeouts apply per read, so a server that keeps trickling bytes would never time out on its own.
+            async with asyncio.timeout(self._timeout), httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(self._url, headers=self._headers,
                                              json={"model": self._model, "messages": messages, "tools": tools})
                 response.raise_for_status()
                 body = response.json()
             return body["choices"][0]["message"], body.get("usage") or {}
-        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as error:
+        except (TimeoutError, httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as error:
             raise LlmError(f"{self._model} call failed: {error!r}") from error

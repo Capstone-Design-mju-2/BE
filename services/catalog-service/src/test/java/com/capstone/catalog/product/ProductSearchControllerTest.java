@@ -33,7 +33,7 @@ class ProductSearchControllerTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.update("TRUNCATE products, reviews, review_survey_answers RESTART IDENTITY");
+        jdbcTemplate.update("TRUNCATE products, reviews, review_survey_answers, product_ingredients RESTART IDENTITY");
         product(1, "촉촉 토너", 20000);          // q only in the name
         product(2, "세라마이드 크림", 25000);    // q only in reviews, 3 hits
         product(3, "비타민 세럼", 90000);        // q in reviews, over maxPrice
@@ -151,6 +151,24 @@ class ProductSearchControllerTest {
         mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("category", "스킨케어"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_SEARCH_REQUEST"));
+    }
+
+    @Test
+    void 빼는_성분이_든_상품과_성분_정보가_없는_상품은_빠진다() throws Exception {
+        jdbcTemplate.update("""
+                INSERT INTO product_ingredients (product_id, name, source)
+                VALUES (1, '정제수', 'musinsa'), (1, '글리세린', 'musinsa'), (2, '정제수', 'glowpick'), (2, '향료', 'glowpick')
+                """);
+
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("excludeIngredient", "향료"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉")
+                        .param("excludeIngredient", "에탄올").param("excludeIngredient", "향료"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("excludeIngredient", "에탄올"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(2, 1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉"))
+                .andExpect(jsonPath("$.products", hasSize(3)));
     }
 
     @Test

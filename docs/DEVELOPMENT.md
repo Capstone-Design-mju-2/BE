@@ -85,9 +85,12 @@ uv run python scripts/collect_musinsa.py --category 104001 --products 25 --revie
 uv run python scripts/collect_options.py .local/musinsa/104001-*.jsonl  # 상품 옵션(SKU) 목록
 uv run python scripts/load_catalog.py .local/musinsa/104001-*.jsonl     # catalog-service가 떠 있어야 한다
 uv run python scripts/seed_inventory.py .local/musinsa/104001-*.jsonl   # catalog-service와 order-service가 떠 있어야 한다
+uv run python scripts/collect_essentials.py .local/musinsa/full/*.jsonl  # 상품 고시 정보(성분표)
+uv run python scripts/load_ingredients.py .local/musinsa/essentials/essentials*.jsonl \
+    --glowpick .local/musinsa/essentials/glowpick.jsonl  # catalog-service가 떠 있어야 한다
 ```
 
-적재 스크립트는 같은 파일을 다시 넣어도 결과가 같다. `load_catalog.py`는 별점이 없는 리뷰(`grade` 0)를 건너뛴다. `seed_inventory.py`는 무신사 옵션(SKU)마다 재고 1행을 만든다. 수량은 그 옵션을 적은 리뷰 수로 정하고(0개는 품절, 50 미만 3개, 50~999개 10개, 1000개 이상 30개), 두 개를 고르는 세트 상품은 두 값 중 리뷰가 적은 쪽으로, 옵션이 없는 상품은 상품 리뷰 수로 정한다. 이미 있는 재고의 수량은 바꾸지 않으므로 규칙을 바꿔 다시 넣으려면 먼저 `make reset-inventory CONFIRM=1`로 재고 테이블을 비운다. 주문으로 바뀐 수량도 함께 지워진다. `productId`를 얻으려고 상품을 catalog에 다시 보내므로 파일이 크면 리뷰를 다시 쓰는 시간이 든다.
+적재 스크립트는 같은 파일을 다시 넣어도 결과가 같다. `load_catalog.py`는 별점이 없는 리뷰(`grade` 0)를 건너뛴다. `seed_inventory.py`는 무신사 옵션(SKU)마다 재고 1행을 만든다. 수량은 그 옵션을 적은 리뷰 수로 정하고(0개는 품절, 50 미만 3개, 50~999개 10개, 1000개 이상 30개), 두 개를 고르는 세트 상품은 두 값 중 리뷰가 적은 쪽으로, 옵션이 없는 상품은 상품 리뷰 수로 정한다. 이미 있는 재고의 수량은 바꾸지 않으므로 규칙을 바꿔 다시 넣으려면 먼저 `make reset-inventory CONFIRM=1`로 재고 테이블을 비운다. 주문으로 바뀐 수량도 함께 지워진다. `productId`를 얻으려고 상품을 catalog에 다시 보내므로 파일이 크면 리뷰를 다시 쓰는 시간이 든다. `load_ingredients.py`는 성분표를 성분 이름으로 나눠 상품마다 목록을 통째로 바꾼다. "상세페이지 참조"처럼 목록이 아니거나 띄어쓰기로만 나뉜 성분표는 빈 목록으로 보내 성분 정보가 없는 상품으로 남긴다. 무신사 성분표가 "상세페이지 참조"인 상품은 글로우픽에서 찾은 성분(`glowpick.jsonl`, 용량이 같은 매칭만)으로 채우고 출처를 함께 저장한다. 글로우픽 수집 스크립트는 저장소에 두지 않으므로 `glowpick.jsonl`은 따로 전달받는다. 없으면 `--glowpick`을 빼고 무신사 성분표만 적재한다.
 
 ## 5. 검증
 

@@ -62,7 +62,7 @@ def quality(questions: list[dict], judgments: dict) -> dict:
         judged = relevant.keys() | judgments[q["id"]]["notRelevant"].keys()
         violations = {}
         for p in products:
-            info = {"category": sql(f"select category_code from products where id = {p['productId']}"),
+            info = {"id": p["productId"], "category": sql(f"select category_code from products where id = {p['productId']}"),
                     "price": p["price"], "brand": p["brand"]}
             v = hard_violation(q, info)
             if v:

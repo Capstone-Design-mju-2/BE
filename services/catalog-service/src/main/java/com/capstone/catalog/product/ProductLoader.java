@@ -50,6 +50,11 @@ public class ProductLoader {
             ON CONFLICT DO NOTHING
             """;
 
+    private static final String INSERT_INGREDIENT = """
+            INSERT INTO product_ingredients (product_id, name, source, source_url) VALUES (?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     public ProductLoader(JdbcTemplate jdbcTemplate) {
@@ -73,6 +78,20 @@ public class ProductLoader {
                 .toList());
         jdbcTemplate.batchUpdate(INSERT_SURVEY_ANSWER, surveyAnswers(productId, p.reviews()));
         return productId;
+    }
+
+    /** Replaces the product's ingredient list. Returns false when no product has this external id. */
+    @Transactional
+    public boolean loadIngredients(long externalId, List<String> names, String source, String sourceUrl) {
+        var ids = jdbcTemplate.queryForList("SELECT id FROM products WHERE external_id = ?", Long.class, externalId);
+        if (ids.isEmpty()) {
+            return false;
+        }
+        long productId = ids.getFirst();
+        jdbcTemplate.update("DELETE FROM product_ingredients WHERE product_id = ?", productId);
+        jdbcTemplate.batchUpdate(INSERT_INGREDIENT,
+                names.stream().map(n -> new Object[] {productId, n, source, sourceUrl}).toList());
+        return true;
     }
 
     private static List<Object[]> surveyAnswers(long productId, List<Review> reviews) {
