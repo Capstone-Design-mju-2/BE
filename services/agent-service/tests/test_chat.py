@@ -207,6 +207,15 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual([p["reason"] for p in body["products"]], ["촉촉해요.", None])
         self.assertFalse(self.traces()[-1]["reasons"]["99"]["inSearch"])
 
+    def test_도구_이름에_붙은_채널_표시는_떼고_부른다(self):
+        tools = serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products<|channel|>commentary", {"q": "수분크림"}),
+            final("세 개 찾았어요.", {})))
+        body = self.chat().json()
+
+        self.assertEqual(len(body["products"]), 3)
+        self.assertEqual([call[0] for call in tools.calls], ["search_products"])
+
     def test_도구_오류는_LLM에게_돌려주고_LLM이_이어서_답한다(self):
         llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
                       tool_call("check_inventory", {"product_ids": [1, 2, 3]}),

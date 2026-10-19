@@ -75,6 +75,8 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
                 call_id, name, raw_arguments = call["id"], call["function"]["name"], call["function"]["arguments"]
             except (KeyError, TypeError) as error:
                 raise LlmError(f"malformed tool call: {call!r}") from error
+            # gpt-oss sometimes leaks its channel marker into the name: "search_products<|channel|>commentary".
+            name = name.split("<|", 1)[0]
             result = await _call_tool(tools, name, raw_arguments, trace)
             if name == "search_products":
                 if "error" in result:
