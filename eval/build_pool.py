@@ -22,6 +22,9 @@ CATALOG_URL = "http://127.0.0.1:8081"
 POOL_JSON = ROOT / ".local/eval/pool.json"
 PER_METHOD = 10
 TOP_SURVEY_ANSWERS = ("매우 높음", "매우 좋음", "전혀없음", "전혀 없음", "거의없음", "거의 없음", "매우 만족")
+# Same mapping as INGREDIENT_NAMES in services/search-mcp/src/search_mcp/server.py.
+INGREDIENT_NAMES = {"향료": ["향료"], "알코올": ["에탄올", "변성알코올", "알코올", "아이소프로필알코올"],
+                    "미네랄오일": ["미네랄오일"]}
 
 
 def sql(query: str) -> str:
@@ -43,7 +46,15 @@ def filters(q: dict) -> str:
         parts.append(f"p.brand_name = {literal(q['brand'])}")
     parts.append("(" + " or ".join(f"p.name ilike {literal('%' + t + '%')}" for t in q["typeNames"]) + ")")
     parts += [f"p.name not ilike {literal('%' + t + '%')}" for t in q.get("excludeNames", [])]
+    if q.get("excludeIngredients"):
+        names = ", ".join(literal(n) for n in excluded_names(q))
+        parts.append(f"exists (select 1 from product_ingredients i where i.product_id = p.id) and not exists "
+                     f"(select 1 from product_ingredients i where i.product_id = p.id and i.name in ({names}))")
     return " and ".join(parts)
+
+
+def excluded_names(q: dict) -> list[str]:
+    return [name for i in q.get("excludeIngredients", []) for name in INGREDIENT_NAMES[i]]
 
 
 def keyword(q: dict) -> list[int]:
@@ -90,12 +101,19 @@ def hard_violation(q: dict, info: dict) -> str | None:
         return f"가격 {info['price']}원"
     if q.get("brand") and info["brand"] != q["brand"]:
         return f"브랜드 {info['brand']}"
+    if q.get("excludeIngredients"):
+        names = set(sql(f"select name from product_ingredients where product_id = {info['id']}").splitlines())
+        if not names:
+            return "성분 정보 없음"
+        found = names & set(excluded_names(q))
+        if found:
+            return "성분 " + ", ".join(sorted(found))
     return None
 
 
 def digest(q: dict, product_id: int) -> tuple[str, str | None]:
     info = json.loads(sql(
-        f"select json_build_object('name', name, 'brand', brand_name, 'price', price, 'category', category_code, "
+        f"select json_build_object('id', id, 'name', name, 'brand', brand_name, 'price', price, 'category', category_code, "
         f"'reviews', review_count, 'score', review_score) from products where id = {product_id}"))
     head = (f"  [{product_id}] {info['brand']} | {info['name'][:60]} | {info['price']}원 | cat {info['category']} "
             f"| 리뷰 {info['reviews']} | 점수 {info['score']}")

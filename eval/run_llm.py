@@ -1,10 +1,11 @@
-"""Quality of the LLM path with and without category/brand filters (ADR-95).
+"""Quality of the LLM path with and without category/brand/ingredient filters (ADR-95, ADR-97).
 
 uv run --package agent-service python eval/run_llm.py nofilter filter > .local/eval/llm.txt
 uv run --package agent-service python eval/run_llm.py rescore nofilter filter   # after judging new products
+uv run --package agent-service python eval/run_llm.py nofilter filter Q16 Q17 Q18   # only these -> llm-filter-Q16-Q18.json
 
-Each question runs RUNS times per variant because the LLM is not deterministic. "nofilter" hides category and brand
-from the tool schema and the system prompt, so the two variants differ only in the filters.
+Each question runs RUNS times per variant because the LLM is not deterministic. "nofilter" hides category, brand
+and exclude_ingredients from the tool schema and the system prompt, so the two variants differ only in the filters.
 """
 
 import asyncio
@@ -23,8 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_pool import ROOT, hard_violation, sql  # noqa: E402
 
 RUNS = 3
-FILTERS = ("category", "brand")
-FILTER_LINE = next(line for line in agent.SYSTEM_PROMPT.splitlines() if "category" in line)
+FILTERS = ("category", "brand", "exclude_ingredients")
+FILTER_LINES = [line for line in agent.SYSTEM_PROMPT.splitlines() if any(f in line for f in FILTERS)]
 
 
 class Recording:
@@ -52,7 +53,7 @@ def score(q: dict, judgment: dict, products: list[dict]) -> dict:
     ids = [p["productId"] for p in products]
     violations = {}
     for p in products:
-        info = {"category": sql(f"select category_code from products where id = {p['productId']}"),
+        info = {"id": p["productId"], "category": sql(f"select category_code from products where id = {p['productId']}"),
                 "price": p["price"], "brand": p["brand"]}
         v = hard_violation(q, info)
         if v:
@@ -64,7 +65,8 @@ def score(q: dict, judgment: dict, products: list[dict]) -> dict:
 
 async def run(variant: str, questions: list[dict], judgments: dict, tools: McpTools) -> list[dict]:
     llm = get_llm()
-    agent.SYSTEM_PROMPT = PROMPT if variant == "filter" else PROMPT.replace(FILTER_LINE + "\n", "")
+    agent.SYSTEM_PROMPT = PROMPT if variant == "filter" else "\n".join(
+        line for line in PROMPT.splitlines() if line not in FILTER_LINES)
     rows = []
     for attempt in range(RUNS):
         for q in questions:
@@ -122,12 +124,16 @@ async def main() -> None:
         for variant in sys.argv[2:]:
             rescore(variant, judgments)
         return
+    only = [a for a in sys.argv[1:] if a.startswith("Q")]
+    if only:
+        questions = [q for q in questions if q["id"] in only]
     agent.TRACE_PATH = ROOT / ".local/eval/llm-trace.jsonl"
     async with McpTools() as tools:
-        for variant in sys.argv[1:]:
+        for variant in [a for a in sys.argv[1:] if a not in only]:
             rows = await run(variant, questions, judgments, tools)
             result = {"variant": variant, "summary": summary(rows), "rows": rows}
-            (ROOT / f".local/eval/llm-{variant}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
+            name = variant if not only else f"{variant}-{only[0]}-{only[-1]}"
+            (ROOT / f".local/eval/llm-{name}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
             print(json.dumps({"variant": variant, **result["summary"]}, ensure_ascii=False), flush=True)
 
 

@@ -1,6 +1,6 @@
 {
   "version": "2026-10-18",
-  "note": "Judging criteria were written before any candidate was looked at (ADR-93). typeNames only identifies the product type from its name, as a shopper would; it is not the answer.",
+  "note": "Judging criteria were written before any candidate was looked at (ADR-93). typeNames only identifies the product type from its name, as a shopper would; it is not the answer. Q16-Q21 (2026-10-19, ADR-97) were written before the ingredient mapping and code; excludeIngredients uses everyday names: 향료 = ingredient listed as 향료; 알코올 = volatile alcohol (에탄올, 변성알코올, 알코올, 아이소프로필알코올), not fatty alcohols such as 세테아릴알코올; 미네랄오일 = listed as 미네랄오일.",
   "questions": [
     {
       "id": "Q01",
@@ -182,6 +182,84 @@
       "surveyAttr": "지속력",
       "aspectTerms": ["향", "지속", "오래", "잔향"],
       "criteria": "바디로션·바디크림이다. 향이 오래 남는다는 평이 우세하다."
+    },
+    {
+      "id": "Q16",
+      "text": "향료 없는 수분크림 추천해 줘",
+      "categories": ["104001"],
+      "maxPrice": null,
+      "excludeIngredients": ["향료"],
+      "typeNames": ["크림"],
+      "excludeNames": ["아이크림", "선크림", "핸드크림", "클렌징"],
+      "skinType": null,
+      "surveyAttr": "보습력",
+      "aspectTerms": ["향", "무향", "촉촉", "보습"],
+      "criteria": "얼굴용 보습 크림이다. 성분표가 있고 향료가 없다(코드 판정). 보습이 된다는 평이 우세하다."
+    },
+    {
+      "id": "Q17",
+      "text": "알코올 안 들어간 토너 있어?",
+      "categories": ["104001"],
+      "maxPrice": null,
+      "excludeIngredients": ["알코올"],
+      "typeNames": ["토너", "스킨", "toner"],
+      "excludeNames": ["패드"],
+      "skinType": null,
+      "surveyAttr": "자극여부",
+      "aspectTerms": ["자극", "따가", "순하", "알코올"],
+      "criteria": "액상 토너(스킨)다. 성분표가 있고 휘발성 알코올(에탄올·변성알코올·알코올·아이소프로필알코올)이 없다(코드 판정). 자극이 없다는 평이 우세하다."
+    },
+    {
+      "id": "Q18",
+      "text": "무향 바디로션 추천해 줘",
+      "categories": ["104007"],
+      "maxPrice": null,
+      "excludeIngredients": ["향료"],
+      "typeNames": ["로션", "크림", "lotion"],
+      "excludeNames": ["워시", "스크럽", "오일", "미스트", "핸드"],
+      "skinType": null,
+      "surveyAttr": null,
+      "aspectTerms": ["향", "무향", "냄새"],
+      "criteria": "바디로션·바디크림이다. 성분표가 있고 향료가 없다(코드 판정). 향이 거의 없다는 평이 있거나, 향이 강하다는 평이 드물다."
+    },
+    {
+      "id": "Q19",
+      "text": "예민해서 향료랑 알코올 둘 다 없는 세럼 찾고 있어",
+      "categories": ["104001"],
+      "maxPrice": null,
+      "excludeIngredients": ["향료", "알코올"],
+      "typeNames": ["세럼", "앰플", "에센스", "serum", "ampoule"],
+      "excludeNames": ["헤어"],
+      "skinType": "sensitive",
+      "surveyAttr": "자극여부",
+      "aspectTerms": ["자극", "따가", "예민", "민감", "순하"],
+      "criteria": "얼굴용 세럼·앰플·에센스다. 성분표가 있고 향료와 휘발성 알코올이 모두 없다(코드 판정). 설문 자극 여부에서 전혀없음·거의없음이 대부분이다."
+    },
+    {
+      "id": "Q20",
+      "text": "미네랄오일 없는 클렌징 오일 추천해 줘",
+      "categories": ["104003"],
+      "maxPrice": null,
+      "excludeIngredients": ["미네랄오일"],
+      "typeNames": ["오일", "oil"],
+      "excludeNames": ["폼", "워터", "티슈", "패드"],
+      "skinType": null,
+      "surveyAttr": null,
+      "aspectTerms": ["세정", "지워", "자극", "유화", "블랙헤드"],
+      "criteria": "얼굴용 클렌징 오일이다. 성분표가 있고 미네랄오일이 없다(코드 판정). 잘 지워지고 자극이 없다는 평이 우세하다."
+    },
+    {
+      "id": "Q21",
+      "text": "향료 없는 선크림 추천해 줘",
+      "categories": ["104002"],
+      "maxPrice": null,
+      "excludeIngredients": ["향료"],
+      "typeNames": ["선크림", "선 크림", "썬크림", "선로션", "선에센스", "선세럼", "선젤", "선 젤", "sun cream", "선 에센스"],
+      "excludeNames": ["스틱", "쿠션", "스프레이", "패치"],
+      "skinType": null,
+      "surveyAttr": null,
+      "aspectTerms": ["자극", "백탁", "향", "따가"],
+      "criteria": "바르는 선크림류다(스틱·쿠션·스프레이 제외). 성분표가 있고 향료가 없다(코드 판정). 자극이 없다는 평이 우세하다."
     }
   ]
 }
