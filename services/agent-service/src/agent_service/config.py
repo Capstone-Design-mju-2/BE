@@ -15,6 +15,14 @@ class Settings(BaseSettings):
         default="http://localhost:8082",
         validation_alias="ORDER_SERVICE_URL",
     )
+    # Any OpenAI-compatible chat completions API (ADR-91). Without a key the agent answers with the 1B rules.
+    llm_base_url: str = Field(
+        default="https://integrate.api.nvidia.com/v1",
+        validation_alias="LLM_BASE_URL",
+    )
+    llm_model: str = Field(default="openai/gpt-oss-20b", validation_alias="LLM_MODEL")
+    llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
+    llm_timeout_seconds: float = Field(default=120.0, validation_alias="LLM_TIMEOUT_SECONDS")
 
 
 settings = Settings()

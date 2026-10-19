@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mcp import ClientSession, StdioServerParameters
+from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 
 from agent_service.config import settings
@@ -38,6 +38,7 @@ class _Session:
         self._start_timeout = start_timeout
         self._call_timeout = call_timeout
         self._session: ClientSession | None = None
+        self.tools: list[types.Tool] = []
         self._ready = asyncio.Event()
         self._wake = asyncio.Event()
         self._stopping = False
@@ -66,6 +67,7 @@ class _Session:
                 async with stdio_client(self._parameters) as (read, write):
                     async with ClientSession(read, write) as session:
                         await asyncio.wait_for(session.initialize(), self._start_timeout)
+                        self.tools = (await asyncio.wait_for(session.list_tools(), self._start_timeout)).tools
                         self._session = session
                         self._ready.set()
                         opened = True
@@ -118,6 +120,15 @@ class McpTools:
         except BaseException:
             await self._stop()
             raise
+        # Every server exposes its own health tool; the LLM only needs the domain tools.
+        tools = [(session, tool) for session in (self._search, self._inventory)
+                 for tool in session.tools if tool.name != "health"]
+        self._by_name = {tool.name: session for session, tool in tools}
+        self.definitions = [
+            {"type": "function",
+             "function": {"name": tool.name, "description": tool.description or "", "parameters": tool.input_schema}}
+            for _, tool in tools
+        ]
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:
@@ -134,3 +145,9 @@ class McpTools:
 
     async def check_inventory(self, product_ids: list[int]) -> dict[str, Any]:
         return await self._inventory.call("check_inventory", {"product_ids": product_ids})
+
+    async def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        session = self._by_name.get(name)
+        if session is None:
+            raise ToolError(f"{name} is not a tool")
+        return await session.call(name, arguments)

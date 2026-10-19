@@ -25,6 +25,7 @@ check:
 	uv lock --check
 	uv run python -m compileall -q services/agent-service/src services/search-mcp/src services/inventory-mcp/src
 	uv run --package agent-service python -m unittest discover -s services/agent-service/tests
+	uv run --package agent-service python -m doctest services/agent-service/src/agent_service/agent.py
 	uv run python -m doctest services/agent-service/src/agent_service/extract.py scripts/seed_inventory.py scripts/collect_musinsa.py scripts/collect_options.py scripts/load_catalog.py
 
 smoke:

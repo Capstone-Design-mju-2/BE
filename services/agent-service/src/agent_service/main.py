@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -6,14 +7,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from agent_service.agent import SEARCH_LIMIT, cards, inventory_by_id, run_agent
 from agent_service.config import settings
 from agent_service.extract import extract
+from agent_service.llm import Llm, LlmError
 from agent_service.tools import McpTools, ToolError
 
-SEARCH_LIMIT = 5
+logger = logging.getLogger(__name__)
+
 MAX_MESSAGE_LENGTH = 500
 NOT_FOUND_ANSWER = "조건에 맞는 상품을 찾지 못했습니다."
-UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 
 
 @asynccontextmanager
@@ -41,27 +44,38 @@ def get_tools(request: Request) -> McpTools:
     return request.app.state.tools
 
 
-@app.post("/api/v1/chat", tags=["chat"])
-async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools)):
-    q, max_price = extract(request.message)
-    if q is None:
-        return {"answer": NOT_FOUND_ANSWER, "products": []}
+def get_llm() -> Llm | None:
+    if not settings.llm_api_key:
+        return None
+    return Llm(settings.llm_base_url, settings.llm_api_key, settings.llm_model, settings.llm_timeout_seconds)
 
+
+@app.post("/api/v1/chat", tags=["chat"])
+async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: Llm | None = Depends(get_llm)):
     try:
-        found = await tools.search_products(q, max_price, SEARCH_LIMIT)
+        if llm is not None:
+            try:
+                answer, products, inventories, reasons = await run_agent(request.message, llm, tools)
+                return {"answer": answer, "products": cards(products, inventories, reasons)}
+            except LlmError as error:
+                logger.warning("LLM could not answer, falling back to the 1B rules (ADR-92): %r", error)
+        return await _rule_chat(request.message, tools)
     except ToolError:
         return JSONResponse(status_code=502,
                             content={"code": "PRODUCT_SEARCH_FAILED", "message": "상품 검색에 실패했습니다."})
-    products = found["products"]
 
+
+async def _rule_chat(message: str, tools: McpTools) -> dict:
+    """Stage 1B: rule-based arguments, fixed tool order, template answer, no reason."""
+    q, max_price = extract(message)
+    if q is None:
+        return {"answer": NOT_FOUND_ANSWER, "products": []}
+
+    products = (await tools.search_products(q, max_price, SEARCH_LIMIT))["products"]
     inventories = await _check_inventories(tools, [p["productId"] for p in products])
-    cards = [
-        {**p, "reason": None, "inventory": inventories.get(p["productId"], UNKNOWN_INVENTORY)}
-        for p in products
-        if inventories.get(p["productId"], UNKNOWN_INVENTORY)["status"] != "NOT_FOUND"
-    ]
-    answer = f"조건에 맞는 상품 {len(cards)}개를 찾았습니다." if cards else NOT_FOUND_ANSWER
-    return {"answer": answer, "products": cards}
+    found = cards(products, inventories, {})
+    answer = f"조건에 맞는 상품 {len(found)}개를 찾았습니다." if found else NOT_FOUND_ANSWER
+    return {"answer": answer, "products": found}
 
 
 async def _check_inventories(tools: McpTools, product_ids: list[int]) -> dict[int, dict]:
@@ -72,10 +86,7 @@ async def _check_inventories(tools: McpTools, product_ids: list[int]) -> dict[in
         checked = await tools.check_inventory(product_ids)
     except ToolError:
         return {}
-    return {
-        item["productId"]: {k: item[k] for k in ("status", "quantity", "estimatedDeliveryDate")}
-        for item in checked["inventories"]
-    }
+    return inventory_by_id(checked)
 
 
 @app.get("/health", tags=["system"])
