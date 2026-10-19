@@ -31,8 +31,12 @@ public class ProductSearchController {
                                  @RequestParam(required = false) @PositiveOrZero Integer maxPrice,
                                  @RequestParam(required = false) @Pattern(regexp = "\\d{6}") String category,
                                  @RequestParam(required = false) String brand,
+                                 @RequestParam(required = false) List<String> excludeIngredient,
                                  @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
-        return new SearchResponse(productSearch.search(q.strip(), maxPrice, category, blankToNull(brand), limit));
+        var excluded = excludeIngredient == null ? List.<String>of()
+                : excludeIngredient.stream().filter(n -> !n.isBlank()).map(String::strip).toList();
+        return new SearchResponse(productSearch.search(q.strip(), maxPrice, category, blankToNull(brand), excluded,
+                limit));
     }
 
     private static String blankToNull(String value) {

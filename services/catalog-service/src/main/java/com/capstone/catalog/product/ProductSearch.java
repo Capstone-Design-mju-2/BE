@@ -33,6 +33,10 @@ public class ProductSearch {
                 WHERE (CAST(:maxPrice AS integer) IS NULL OR p.price <= :maxPrice)
                   AND (CAST(:category AS text) IS NULL OR p.category_code = :category)
                   AND (CAST(:brand AS text) IS NULL OR p.brand_name = :brand)
+                  AND (NOT :excludes OR (
+                       EXISTS (SELECT 1 FROM product_ingredients i WHERE i.product_id = p.id)
+                       AND NOT EXISTS (SELECT 1 FROM product_ingredients i
+                                       WHERE i.product_id = p.id AND i.name IN (:excluded))))
                   AND (h.hits IS NOT NULL OR p.name ILIKE :pattern)
                   AND EXISTS (SELECT 1 FROM reviews r WHERE r.product_id = p.id)
                 ORDER BY hits DESC, p.review_count DESC, p.id
@@ -56,12 +60,16 @@ public class ProductSearch {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<Product> search(String q, Integer maxPrice, String category, String brand, int limit) {
+    public List<Product> search(String q, Integer maxPrice, String category, String brand,
+                                List<String> excludedIngredients, int limit) {
         var params = new MapSqlParameterSource()
                 .addValue("pattern", "%" + escapeLike(q) + "%")
                 .addValue("maxPrice", maxPrice)
                 .addValue("category", category)
                 .addValue("brand", brand)
+                .addValue("excludes", !excludedIngredients.isEmpty())
+                // An empty list would expand to "IN ()", which is not valid SQL.
+                .addValue("excluded", excludedIngredients.isEmpty() ? List.of("") : excludedIngredients)
                 .addValue("limit", limit);
 
         Map<Long, Product> products = new LinkedHashMap<>();

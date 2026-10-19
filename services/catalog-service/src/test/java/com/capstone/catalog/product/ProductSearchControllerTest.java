@@ -154,6 +154,24 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void 빼는_성분이_든_상품과_성분_정보가_없는_상품은_빠진다() throws Exception {
+        jdbcTemplate.update("""
+                INSERT INTO product_ingredients (product_id, name, source)
+                VALUES (1, '정제수', 'musinsa'), (1, '글리세린', 'musinsa'), (2, '정제수', 'glowpick'), (2, '향료', 'glowpick')
+                """);
+
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("excludeIngredient", "향료"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉")
+                        .param("excludeIngredient", "에탄올").param("excludeIngredient", "향료"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("excludeIngredient", "에탄올"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(2, 1)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉"))
+                .andExpect(jsonPath("$.products", hasSize(3)));
+    }
+
+    @Test
     void 퍼센트와_밑줄은_와일드카드가_아니라_글자로_찾는다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "%"))
                 .andExpect(jsonPath("$.products").isEmpty());
