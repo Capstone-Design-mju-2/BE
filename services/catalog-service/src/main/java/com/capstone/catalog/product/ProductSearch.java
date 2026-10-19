@@ -31,6 +31,8 @@ public class ProductSearch {
                 FROM products p
                 LEFT JOIN hits h ON h.product_id = p.id
                 WHERE (CAST(:maxPrice AS integer) IS NULL OR p.price <= :maxPrice)
+                  AND (CAST(:category AS text) IS NULL OR p.category_code = :category)
+                  AND (CAST(:brand AS text) IS NULL OR p.brand_name = :brand)
                   AND (h.hits IS NOT NULL OR p.name ILIKE :pattern)
                   AND EXISTS (SELECT 1 FROM reviews r WHERE r.product_id = p.id)
                 ORDER BY hits DESC, p.review_count DESC, p.id
@@ -54,10 +56,12 @@ public class ProductSearch {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<Product> search(String q, Integer maxPrice, int limit) {
+    public List<Product> search(String q, Integer maxPrice, String category, String brand, int limit) {
         var params = new MapSqlParameterSource()
                 .addValue("pattern", "%" + escapeLike(q) + "%")
                 .addValue("maxPrice", maxPrice)
+                .addValue("category", category)
+                .addValue("brand", brand)
                 .addValue("limit", limit);
 
         Map<Long, Product> products = new LinkedHashMap<>();
