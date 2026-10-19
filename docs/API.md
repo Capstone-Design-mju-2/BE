@@ -189,6 +189,71 @@ POST /api/v1/internal/inventories/load
 
 { "code": "INVALID_INVENTORY_LOAD", "message": "요청 형식이 올바르지 않습니다." }
 
+### 주문 생성
+
+```text
+POST /api/v1/orders
+```
+
+옵션과 수량을 받아 재고 확인·차감·주문 생성을 한 트랜잭션으로 처리한다.
+
+요청
+
+```json
+{
+  "ordererKey": "demo",
+  "items": [
+    { "productId": 101, "optionKey": "11", "quantity": 2 },
+    { "productId": 102, "optionKey": "31", "quantity": 1 }
+  ]
+}
+```
+
+응답 (201)
+
+```json
+{
+  "orderId": 1,
+  "totalPrice": 51800,
+  "items": [
+    { "productId": 101, "optionKey": "11", "name": "수분크림 A 50ml", "unitPrice": 12900, "quantity": 2 },
+    { "productId": 102, "optionKey": "31", "name": "쿠션 B 21호", "unitPrice": 26000, "quantity": 1 }
+  ]
+}
+```
+
+- 항목 하나라도 실패하면 주문 전체가 실패하고, 앞서 차감한 재고도 모두 되돌린다.
+- 같은 옵션이 여러 번 들어오면 수량을 합쳐 한 항목으로 처리한다.
+- `unitPrice`는 주문 시점의 옵션 가격을 복사해 저장한다. 이후 가격이 바뀌어도 주문 내역은 바뀌지 않는다.
+- `quantity`는 1~99 정수다. 한 요청의 항목은 최대 20개다.
+- `ordererKey`, `optionKey`는 100자 이하다. 범위를 벗어나면 400을 반환한다.
+- 시연 단계에서 `ordererKey`는 고정값 `"demo"`를 쓴다.
+- 취소·환불은 없다. 시연용 재고는 별도 리셋 수단으로 되돌린다.
+
+실패 응답
+
+공통 오류 본문에 `failedItem`을 더한다. agent가 실패 사유와 원래 조건을 보고 대안 상품을 다시 찾을 수 있게 한다.
+
+```json
+{
+  "code": "INSUFFICIENT_STOCK",
+  "message": "주문할 수 없는 항목이 있습니다.",
+  "failedItem": { "productId": 101, "optionKey": "11", "requested": 5, "available": 2 }
+}
+```
+
+| code | HTTP | 의미 |
+|---|---|---|
+| `OUT_OF_STOCK` | 409 | 재고 0개 |
+| `INSUFFICIENT_STOCK` | 409 | 재고는 있지만 요청 수량보다 적음 |
+| `OPTION_NOT_FOUND` | 404 | `(productId, optionKey)`에 해당하는 옵션이 없음 |
+| `INVALID_ORDER` | 400 | 요청 형식 오류 (`failedItem` 없음) |
+
+미결 (리뷰에서 결정)
+
+- `ordererKey`에 넣을 값: 세션 ID 또는 고정 더미 사용자
+- 가격 복사 출처: 현재는 order DB의 옵션 가격(`inventory.price`)을 복사한다
+
 ## 4. 화면 표시 규칙
 
 agent는 `NOT_FOUND` 상품을 응답에서 제외한다. 화면이 다루는 상태는 세 가지다.
@@ -211,6 +276,12 @@ Inventory API (order-service)
 - 세 결과의 `status`가 각각 `IN_STOCK`, `OUT_OF_STOCK`, `NOT_FOUND`다.
 - `NOT_FOUND`인 결과의 `quantity`와 `estimatedDeliveryDate`가 `null`이다.
 - 21개를 요청하면 400과 오류 본문을 반환한다.
+
+Order API (order-service)
+
+- 재고가 충분하면 재고가 요청 수량만큼 줄고, 주문 항목의 `unitPrice`가 주문 시점 가격과 같다.
+- 두 항목 중 하나라도 재고가 부족하면 409와 `failedItem`을 반환하고, 다른 항목의 재고도 줄지 않는다.
+- 재고 5개인 옵션에 10명이 동시에 1개씩 주문하면 정확히 5건만 성공하고 재고는 0이 된다.
 
 Catalog API (catalog-service)
 
