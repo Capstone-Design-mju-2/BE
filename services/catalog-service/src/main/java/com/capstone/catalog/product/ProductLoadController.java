@@ -5,9 +5,13 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,7 +29,27 @@ public class ProductLoadController {
         return new LoadResponse(productLoader.load(request), request.reviews().size());
     }
 
+    @PutMapping("/{externalId}/ingredients")
+    public ResponseEntity<Void> loadIngredients(@PathVariable long externalId,
+                                                @Valid @RequestBody IngredientsRequest request) {
+        return productLoader.loadIngredients(externalId, request.names(), request.source(), request.sourceUrl())
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
+
     public record LoadResponse(long productId, int reviewCount) {}
+
+    /** An empty names list marks the product's ingredients as unknown; source is then ignored. */
+    public record IngredientsRequest(
+            @NotNull List<@NotBlank @Size(max = 100) String> names,
+            @Pattern(regexp = "musinsa|glowpick") String source,
+            @Size(max = 200) String sourceUrl) {
+
+        @AssertTrue
+        boolean isSourceGivenForNames() {
+            return names == null || names.isEmpty() || source != null;
+        }
+    }
 
     public record LoadProductRequest(
             @NotNull Long externalId,

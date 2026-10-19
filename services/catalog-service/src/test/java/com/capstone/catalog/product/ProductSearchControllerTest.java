@@ -33,7 +33,7 @@ class ProductSearchControllerTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.update("TRUNCATE products, reviews, review_survey_answers RESTART IDENTITY");
+        jdbcTemplate.update("TRUNCATE products, reviews, review_survey_answers, product_ingredients RESTART IDENTITY");
         product(1, "촉촉 토너", 20000);          // q only in the name
         product(2, "세라마이드 크림", 25000);    // q only in reviews, 3 hits
         product(3, "비타민 세럼", 90000);        // q in reviews, over maxPrice

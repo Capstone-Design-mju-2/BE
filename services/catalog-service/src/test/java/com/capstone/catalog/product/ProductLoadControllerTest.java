@@ -9,11 +9,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import com.capstone.catalog.TestcontainersConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,7 +51,7 @@ class ProductLoadControllerTest {
 
     @BeforeEach
     void clean() {
-        jdbcTemplate.update("TRUNCATE products, reviews, review_survey_answers RESTART IDENTITY");
+        jdbcTemplate.update("TRUNCATE products, reviews, review_survey_answers, product_ingredients RESTART IDENTITY");
     }
 
     @Test
@@ -103,6 +105,28 @@ class ProductLoadControllerTest {
     }
 
     @Test
+    void 성분을_다시_적재하면_목록을_통째로_바꾸고_없는_상품은_404다() throws Exception {
+        load(PRODUCT.formatted(40000, "촉촉해요"));
+
+        putIngredients(5816625, "{\"names\": [\"정제수\", \"향료\", \"향료\"], \"source\": \"musinsa\"}")
+                .andExpect(status().isNoContent());
+        putIngredients(5816625, """
+                {"names": ["정제수", "글리세린"], "source": "glowpick",
+                 "sourceUrl": "https://www.glowpick.com/products/1"}""").andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForList("SELECT name || ' ' || source || ' ' || source_url FROM product_ingredients"
+                + " ORDER BY name", String.class)).containsExactly(
+                "글리세린 glowpick https://www.glowpick.com/products/1", "정제수 glowpick https://www.glowpick.com/products/1");
+        putIngredients(5816625, "{\"names\": []}").andExpect(status().isNoContent());
+        assertThat(count("product_ingredients")).isZero();
+
+        putIngredients(1, "{\"names\": [\"정제수\"], \"source\": \"musinsa\"}").andExpect(status().isNotFound());
+        putIngredients(5816625, "{\"names\": [\" \"], \"source\": \"musinsa\"}").andExpect(status().isBadRequest());
+        putIngredients(5816625, "{\"names\": [\"정제수\"]}").andExpect(status().isBadRequest());
+        putIngredients(5816625, "{\"names\": [\"정제수\"], \"source\": \"hwahae\"}").andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 필수_값이_없으면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/internal/products/load")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -114,6 +138,11 @@ class ProductLoadControllerTest {
         mockMvc.perform(post("/internal/products/load").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewCount").value(2));
+    }
+
+    private ResultActions putIngredients(long externalId, String body) throws Exception {
+        return mockMvc.perform(put("/internal/products/{externalId}/ingredients", externalId)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     private int count(String table) {
