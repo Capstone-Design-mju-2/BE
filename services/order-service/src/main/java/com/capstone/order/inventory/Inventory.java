@@ -25,6 +25,9 @@ public class Inventory {
     @Column(nullable = false)
     private int quantity;
 
+    @Column(nullable = false)
+    private long version;
+
     protected Inventory() {}
 
     public Inventory(Long productId, String optionKey, String name, int price, int quantity) {
@@ -41,6 +44,7 @@ public class Inventory {
     public String getName() { return name; }
     public int getPrice() { return price; }
     public int getQuantity() { return quantity; }
+    public long getVersion() { return version; }
 
     public void updateNameAndPrice(String name, int price) {
         this.name = name;
