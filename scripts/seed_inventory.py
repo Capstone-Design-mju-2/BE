@@ -122,9 +122,9 @@ def main() -> int:
     for path in args.files:
         with open(path, encoding="utf-8") as file:
             known.update(str(json.loads(line)["externalId"]) for line in file)
-        if forced - known:
-            print(f"--sold-out ids not found: {sorted(forced - known)}", file=sys.stderr)
-            return 1
+    if forced - known:
+        print(f"--sold-out ids not found: {sorted(forced - known)}", file=sys.stderr)
+        return 1
 
     products = created = present = sold_out = 0
     for path in args.files:
