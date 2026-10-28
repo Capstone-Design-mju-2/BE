@@ -85,9 +85,10 @@ refuse_if_running "http://${CATALOG_SERVICE_HOST:-127.0.0.1}:${CATALOG_SERVICE_P
 refuse_if_running "http://${ORDER_SERVICE_HOST:-127.0.0.1}:${ORDER_SERVICE_PORT:-8082}/actuator/health" "order-service"
 refuse_if_running "http://${AGENT_SERVICE_HOST:-127.0.0.1}:${AGENT_SERVICE_PORT:-8000}/health" "agent-service"
 
-uv sync --locked --all-packages
+# --inexact keeps the optional embedding packages (search-mcp[embed]) a developer installed for semantic search.
+uv sync --locked --all-packages --inexact
 make check
-docker compose up -d --wait catalog-db order-db
+docker compose up -d --wait catalog-db order-db opensearch
 
 java -jar services/catalog-service/build/libs/catalog-service-0.1.0-SNAPSHOT.jar >"$LOG_DIR/catalog.log" 2>&1 &
 CATALOG_PID=$!
