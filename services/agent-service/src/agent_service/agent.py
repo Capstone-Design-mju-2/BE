@@ -61,8 +61,11 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
     products: list[dict] | None = None
     inventories: dict[int, dict] = {}
     search_failed = False
+    # The limit covers the whole chat so the screen has one wait to plan for. Only LLM calls are held to it; a tool
+    # call started before the deadline runs to its own limit (CALL_TIMEOUT_SECONDS), so the chat can overrun by one.
+    deadline = time.monotonic() + llm.timeout
     for _ in range(MAX_ROUNDS):
-        reply, usage = await llm.complete(messages, tools.definitions)
+        reply, usage = await llm.complete(messages, tools.definitions, timeout=deadline - time.monotonic())
         trace["usage"].append(usage)
         if not isinstance(reply, dict):
             raise LlmError(f"assistant message is not an object: {reply!r}")

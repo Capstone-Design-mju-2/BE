@@ -65,7 +65,7 @@ async def search_products(q: str, max_price: int | None = None, category: Catego
         if isinstance(exclude_ingredients, str):
             exclude_ingredients = [exclude_ingredients]
         params["excludeIngredient"] = [name for i in exclude_ingredients for name in INGREDIENT_NAMES[i]]
-    async with httpx.AsyncClient(timeout=3.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(f"{CATALOG_SERVICE_URL}/api/v1/products/search", params=params)
         response.raise_for_status()
         return response.json()
