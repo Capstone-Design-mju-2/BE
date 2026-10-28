@@ -253,7 +253,7 @@ POST /api/v1/orders
 | `INSUFFICIENT_STOCK` | 409 | 재고는 있지만 요청 수량보다 적음 |
 | `OPTION_NOT_FOUND` | 404 | `(productId, optionKey)`에 해당하는 옵션이 없음 |
 | `INVALID_ORDER` | 400 | 요청 형식 오류 (`failedItem` 없음) |
-| `CONCURRENT_UPDATE` | 409 | 재고는 남아 있지만 다른 주문이 먼저 \변경함 (낙관적 락). 다시 시도하면 성공할 수 있음 |
+| `CONCURRENT_UPDATE` | 409 | 재고는 남아 있지만 다른 주문이 먼저 변경함 (낙관적 락). 다시 시도하면 성공할 수 있음 |
 
 미결 (리뷰에서 결정)
 

@@ -44,6 +44,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             """)
     int decreaseIfVersion(@Param("id") Long id,
                           @Param("version") long version,
-                          @Param("qty") int qty);                    
+                          @Param("qty") int qty);
 }
 
