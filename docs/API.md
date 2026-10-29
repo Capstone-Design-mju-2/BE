@@ -255,11 +255,6 @@ POST /api/v1/orders
 | `INVALID_ORDER` | 400 | 요청 형식 오류 (`failedItem` 없음) |
 | `CONCURRENT_UPDATE` | 409 | 재고는 남아 있지만 다른 주문이 먼저 변경함 (낙관적 락). 다시 시도하면 성공할 수 있음 |
 
-미결 (리뷰에서 결정)
-
-- `ordererKey`에 넣을 값: 세션 ID 또는 고정 더미 사용자
-- 가격 복사 출처: 현재는 order DB의 옵션 가격(`inventory.price`)을 복사한다
-
 ## 4. 화면 표시 규칙
 
 agent는 `NOT_FOUND` 상품을 응답에서 제외한다. 화면이 다루는 상태는 세 가지다.
