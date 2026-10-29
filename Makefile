@@ -32,7 +32,7 @@ smoke:
 	./scripts/smoke.sh
 
 infra-up:
-	docker compose up -d --wait catalog-db order-db
+	docker compose up -d --wait catalog-db order-db redis
 
 infra-down:
 	docker compose down

@@ -38,8 +38,11 @@ public class OrderController {
 
     @ExceptionHandler(OrderFailedException.class)
     public ResponseEntity<OrderFailedResponse> orderFailed(OrderFailedException e) {
-        HttpStatus status = e.getReason() == OrderFailedException.Reason.OPTION_NOT_FOUND
-                ? HttpStatus.NOT_FOUND : HttpStatus.CONFLICT;
+        HttpStatus status = switch (e.getReason()) {
+            case OPTION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case LOCK_TIMEOUT, LOCK_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            default -> HttpStatus.CONFLICT;
+        };
         return ResponseEntity.status(status).body(new OrderFailedResponse(
                 e.getReason().name(),
                 "주문할 수 없는 항목이 있습니다.",
