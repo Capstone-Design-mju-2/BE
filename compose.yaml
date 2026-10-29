@@ -36,7 +36,8 @@ services:
     restart: unless-stopped
 
   # Review vectors for semantic search (ADR-98, ADR-101). 800k reviews at 16-bit need about 1.64 GiB of native memory
-  # outside the 1 GiB heap. The k-NN breaker's default 50% of the remaining 3 GiB measured as a 1.5 GiB cap.
+  # outside the 1 GiB heap, and the node used 3.87 GiB once they were loaded: at 4 GiB the kernel killed it under 10
+  # concurrent searches. The k-NN breaker's default 50% of what the heap leaves measured as too small for them.
   opensearch:
     image: opensearchproject/opensearch:3.8.0
     environment:
@@ -49,7 +50,7 @@ services:
       - "127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"
     volumes:
       - opensearch-data:/usr/share/opensearch/data
-    mem_limit: 4g
+    mem_limit: 5g
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s"]
       interval: 5s
