@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from agent_service import agent
+from agent_service.config import settings
 from agent_service.llm import LlmError
 from agent_service.main import get_llm
 from agent_service.tools import McpTools
@@ -133,6 +134,9 @@ async def main() -> None:
             rows = await run(variant, questions, judgments, tools)
             result = {"variant": variant, "summary": summary(rows), "rows": rows}
             name = variant if not only else f"{variant}-{only[0]}-{only[-1]}"
+            # Keeps the catalog results (llm-filter.json and the like) from being overwritten.
+            if settings.search_backend != "catalog":
+                name = f"{settings.search_backend}-{name}"
             (ROOT / f".local/eval/llm-{name}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
             print(json.dumps({"variant": variant, **result["summary"]}, ensure_ascii=False), flush=True)
 

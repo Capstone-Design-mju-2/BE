@@ -1,13 +1,20 @@
 """Baseline for the quality question set: rule extraction + keyword search, no LLM (ADR-93).
 
 uv run --package agent-service python eval/run_baseline.py <label> > .local/eval/baseline-<label>.txt
+SEARCH_BACKEND=opensearch uv run --package agent-service python eval/run_baseline.py <label> [--question]
 
 Quality is scored against eval/quality-judgments.json. Latency is measured client side, one HTTP search call
 from send to full body, after one warmup round.
+
+With SEARCH_BACKEND=opensearch the search goes through search-mcp's search_products with the same extracted q, or
+with the whole question as q (--question). Its latency covers the OpenSearch call from search-mcp only: questions
+are embedded once beforehand, as the catalog latency does not include an embedding either.
 """
 
+import asyncio
 import json
 import math
+import os
 import statistics
 import sys
 import time
@@ -17,6 +24,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from agent_service.extract import extract
+
+BACKEND = os.getenv("SEARCH_BACKEND", "catalog")
+if BACKEND == "opensearch":
+    from search_mcp import server
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_pool import ROOT, hard_violation, sql  # noqa: E402
@@ -28,17 +39,24 @@ ROUNDS = 20
 CONCURRENCY = (1, 10)
 
 
+WHOLE_QUESTION = "--question" in sys.argv
+
+
 def search_params(text: str) -> dict | None:
     term, max_price = extract(text)
     if term is None:
         return None
-    params = {"q": term, "limit": TOP}
+    params = {"q": text if WHOLE_QUESTION else term, "limit": TOP}
     if max_price is not None:
         params["maxPrice"] = max_price
     return params
 
 
 def search(params: dict) -> list[dict]:
+    if BACKEND == "opensearch":
+        found = asyncio.run(server.search_products(params["q"], max_price=params.get("maxPrice"),
+                                                   limit=params["limit"]))
+        return found["products"]
     with urllib.request.urlopen(f"{CATALOG_URL}/api/v1/products/search?{urllib.parse.urlencode(params)}") as r:
         return json.load(r)["products"]
 
@@ -100,6 +118,9 @@ def percentile(values: list[float], p: float) -> float:
 
 def latency(questions: list[dict]) -> dict:
     params = [p for p in (search_params(q["text"]) for q in questions) if p]
+    if BACKEND == "opensearch":
+        vectors = {p["q"]: server.embed(p["q"]) for p in params}
+        server.embed = vectors.__getitem__
     for p in params:
         timed(p)
     result = {"requestsPerRun": len(params) * ROUNDS}
