@@ -11,6 +11,7 @@ and exclude_ingredients from the tool schema and the system prompt, so the two v
 import asyncio
 import copy
 import json
+import os
 import statistics
 import sys
 from pathlib import Path
@@ -25,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_pool import ROOT, hard_violation, sql  # noqa: E402
 
 RUNS = 3
+# Seconds between chats. Gemini's free tier answered 429 to 38 of 126 chats run back to back.
+PAUSE_SECONDS = float(os.getenv("LLM_EVAL_PAUSE_SECONDS", "0"))
 FILTERS = ("category", "brand", "exclude_ingredients")
 FILTER_LINES = [line for line in agent.SYSTEM_PROMPT.splitlines() if any(f in line for f in FILTERS)]
 
@@ -81,6 +84,7 @@ async def run(variant: str, questions: list[dict], judgments: dict, tools: McpTo
                    "error": error, **score(q, judgments[q["id"]], products)}
             rows.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
+            await asyncio.sleep(PAUSE_SECONDS)
     return rows
 
 
