@@ -37,8 +37,6 @@ ORDER_URL = "http://127.0.0.1:8082"
 TOP = 5
 ROUNDS = 20
 CONCURRENCY = (1, 10)
-
-
 WHOLE_QUESTION = "--question" in sys.argv
 
 
