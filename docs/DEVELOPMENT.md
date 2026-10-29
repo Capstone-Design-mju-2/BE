@@ -35,6 +35,7 @@ make smoke
 | order-service | 8082 |
 | catalog-db | 5433 |
 | order-db | 5434 |
+| redis | 6379 |
 
 ## 4. 실행
 

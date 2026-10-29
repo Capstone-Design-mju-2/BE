@@ -254,6 +254,8 @@ POST /api/v1/orders
 | `OPTION_NOT_FOUND` | 404 | `(productId, optionKey)`에 해당하는 옵션이 없음 |
 | `INVALID_ORDER` | 400 | 요청 형식 오류 (`failedItem` 없음) |
 | `CONCURRENT_UPDATE` | 409 | 재고는 남아 있지만 다른 주문이 먼저 변경함 (낙관적 락). 다시 시도하면 성공할 수 있음 |
+| `LOCK_TIMEOUT` | 503 | 락 대기 시간 안에 락을 얻지 못함 (Redisson). 재고를 확인하기 전이라 `available`은 의미가 없다(0) |
+| `LOCK_UNAVAILABLE` | 503 | Redis에 연결하지 못해 주문을 받지 않음 (Redisson). 재고를 확인하기 전이라 `available`은 의미가 없다(0) |
 
 ## 4. 화면 표시 규칙
 
