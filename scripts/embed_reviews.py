@@ -70,6 +70,10 @@ def main() -> int:
         partial = path.with_suffix(".partial.npz")
         np.savez(partial, ids=ids, vectors=vectors)
         partial.rename(path)
+        if device == "mps":
+            # The MPS allocator kept a block for each new batch shape: 7.5 GB of GPU memory after 600k reviews, enough
+            # to push the machine into swap and halve the speed.
+            torch.mps.empty_cache()
         embedded += len(part)
         elapsed = time.perf_counter() - started
         print(f"{part.stop}/{len(rows)} reviews, {elapsed / 60:.1f} min, {embedded / elapsed:.1f} reviews/s",
