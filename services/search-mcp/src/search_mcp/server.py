@@ -43,7 +43,7 @@ def _embedder() -> Callable[[str], list[float]]:
     import torch
     from sentence_transformers import SentenceTransformer
 
-    # Loaded at start, about 12 s on an M2 (ADR-102), so the first search does not pay for it.
+    # Loaded at start, about 10 s on an M2 (ADR-102), so the first search does not pay for it.
     model = SentenceTransformer("BAAI/bge-m3", device="mps" if torch.backends.mps.is_available() else "cpu")
     return lambda q: model.encode(q, normalize_embeddings=True).tolist()
 
