@@ -85,7 +85,11 @@ async def check_semantic_search() -> None:
                                "search_products", {"q": "예민한 피부를 진정시키는 토너", "max_price": 30000})
     if not found["products"] or any(p["price"] > 30000 for p in found["products"]):
         raise RuntimeError(f"semantic search ignored max_price: {found!r}")
-    print("search_products over OpenSearch ranked by meaning and kept max_price")
+    found = await check_server("search-mcp", "search-mcp", "search-mcp", env,
+                               "search_products", {"q": "건성 피부에 촉촉한 수분크림", "exclude_ingredients": ["향료"]})
+    if [p["productId"] for p in found["products"]] != [1001]:
+        raise RuntimeError(f"semantic search kept a product with 향료 or without an ingredient list: {found!r}")
+    print("search_products over OpenSearch ranked by meaning, kept max_price and excluded ingredients")
 
 
 async def main() -> None:
