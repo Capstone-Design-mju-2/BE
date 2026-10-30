@@ -92,7 +92,7 @@ def main() -> int:
         ingredients[int(product_id)].append(name)
     reviews = {int(i): (int(product_id), content, int(grade))
                for i, product_id, content, grade in catalog("SELECT id, product_id, content, grade FROM reviews")}
-    chunks = sorted(EMBEDDINGS.glob("[0-9]*.npz"))
+    chunks = sorted(EMBEDDINGS.glob("[0-9]" * 7 + ".npz"))
     print(f"{len(products)} products, {len(reviews)} reviews, {len(chunks)} vector chunks", flush=True)
 
     try:
