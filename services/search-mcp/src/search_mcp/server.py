@@ -14,8 +14,9 @@ OPENSEARCH_URL = os.getenv("OPENSEARCH_URL", "http://localhost:9200")
 OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "reviews")
 # CI has no model: it searches with question vectors the real model computed once, keyed by question.
 QUERY_VECTORS = os.getenv("QUERY_VECTORS")
-# Reviews fetched per search before grouping them into products.
-CANDIDATES = 50
+# Reviews fetched per search before grouping them into products. At 100 each of the 21 quality questions still had
+# five products of the asked type; at 50 a one-brand question had four products in all (ADR-115).
+CANDIDATES = 100
 EXCERPT_LENGTH = 80
 # The LLM picks a name: given numeric codes, gpt-oss sent them as JSON numbers and the schema rejected them.
 CATEGORY_CODES = {
@@ -53,8 +54,9 @@ embed = _embedder() if SEARCH_BACKEND == "opensearch" else None
 server = MCPServer(
     name="search-mcp",
     instructions=(
-        "Search products by keyword in product names and review texts. "
-        "Each product carries up to two review excerpts as evidence."
+        ("Search products by the meaning of their reviews. " if SEARCH_BACKEND == "opensearch"
+         else "Search products by keyword in product names and review texts. ")
+        + "Each product carries up to two review excerpts as evidence."
     ),
 )
 
@@ -68,7 +70,6 @@ def health() -> dict[str, str]:
     }
 
 
-@server.tool()
 async def search_products(q: str, max_price: int | None = None, category: Category | None = None,
                           brand: str | None = None,
                           exclude_ingredients: list[Ingredient] | Ingredient | None = None,
@@ -80,23 +81,14 @@ async def search_products(q: str, max_price: int | None = None, category: Catego
     brand keeps one brand, matched exactly by its Korean name.
     exclude_ingredients drops products containing any of them, and products whose ingredient list is unknown.
     """
-    category_code = CATEGORY_CODES[category] if category is not None else None
-    excluded = []
-    if exclude_ingredients:
-        # gpt-oss often sends one ingredient as a bare string; rejecting it cost whole conversations.
-        if isinstance(exclude_ingredients, str):
-            exclude_ingredients = [exclude_ingredients]
-        excluded = [name for i in exclude_ingredients for name in INGREDIENT_NAMES[i]]
-    if SEARCH_BACKEND == "opensearch":
-        return await _search_reviews(q, max_price, category_code, brand, excluded, limit)
-
     params: dict[str, Any] = {"q": q, "limit": limit}
     if max_price is not None:
         params["maxPrice"] = max_price
-    if category_code is not None:
-        params["category"] = category_code
+    if category is not None:
+        params["category"] = CATEGORY_CODES[category]
     if brand is not None:
         params["brand"] = brand
+    excluded = excluded_names(exclude_ingredients)
     if excluded:
         params["excludeIngredient"] = excluded
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -105,17 +97,29 @@ async def search_products(q: str, max_price: int | None = None, category: Catego
         return response.json()
 
 
-async def _search_reviews(q: str, max_price: int | None, category: str | None, brand: str | None,
-                          excluded: list[str], limit: int) -> dict[str, Any]:
+async def search_reviews(q: str, max_price: int | None = None, category: Category | None = None,
+                         brand: str | None = None,
+                         exclude_ingredients: list[Ingredient] | Ingredient | None = None,
+                         product_types: list[str] | str | None = None, limit: int = 5) -> dict[str, Any]:
+    """Search products whose reviews match the meaning of q, one sentence of the product type and the conditions.
+
+    product_types keeps products whose name contains one of them: the type as product names write it, without
+    modifiers (크림 for 수분크림), along with its other names.
+    max_price keeps only products priced at or below it (KRW). limit is 1 to 20.
+    category keeps products of one category, given by its name.
+    brand keeps one brand, matched exactly by its Korean name.
+    exclude_ingredients drops products containing any of them, and products whose ingredient list is unknown.
+    """
     filters: list[dict] = []
     if max_price is not None:
         filters.append({"range": {"price": {"lte": max_price}}})
     if category is not None:
-        filters.append({"term": {"category": category}})
+        filters.append({"term": {"category": CATEGORY_CODES[category]}})
     # Like the catalog, surrounding spaces are dropped and a blank brand filters nothing.
     if brand and brand.strip():
         filters.append({"term": {"brand": brand.strip()}})
     must_not = []
+    excluded = excluded_names(exclude_ingredients)
     if excluded:
         # Same rule as the catalog: a product with no known ingredient list cannot be shown to lack one.
         filters.append({"exists": {"field": "ingredients"}})
@@ -128,7 +132,37 @@ async def _search_reviews(q: str, max_price: int | None, category: str | None, b
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
         response.raise_for_status()
-    return {"products": group_by_product([hit["_source"] for hit in response.json()["hits"]["hits"]], limit)}
+    reviews = [hit["_source"] for hit in response.json()["hits"]["hits"]]
+    # A review can describe the asked conditions for a product of another type, a mist for a cream (ADR-115).
+    if isinstance(product_types, str):
+        product_types = [product_types]
+    types = [t for t in product_types or [] if t.strip()]
+    if types:
+        reviews = [r for r in reviews if has_type(r["name"], types)]
+    return {"products": group_by_product(reviews, limit)}
+
+
+# Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
+server.tool(name="search_products")(search_reviews if SEARCH_BACKEND == "opensearch" else search_products)
+
+
+def excluded_names(exclude_ingredients: list[str] | str | None) -> list[str]:
+    # gpt-oss often sends one ingredient as a bare string; rejecting it cost whole conversations.
+    if isinstance(exclude_ingredients, str):
+        exclude_ingredients = [exclude_ingredients]
+    return [name for i in exclude_ingredients or [] for name in INGREDIENT_NAMES[i]]
+
+
+def has_type(name: str, types: list[str]) -> bool:
+    """Product names space their types freely, so spaces are ignored on both sides.
+
+    >>> has_type("퓨어 소이빈 클렌징 폼 160ml", ["클렌징폼"])
+    True
+    >>> has_type("산뜻 선크림 B", ["토너", "스킨"])
+    False
+    """
+    compact = name.replace(" ", "")
+    return any(t.replace(" ", "") in compact for t in types)
 
 
 def group_by_product(reviews: list[dict], limit: int) -> list[dict]:

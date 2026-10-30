@@ -28,7 +28,7 @@ def sql(query: str) -> str:
 
 
 def vector_search() -> list[dict]:
-    return asyncio.run(server.search_products(QUESTION, max_price=MAX_PRICE))["products"]
+    return asyncio.run(server.search_reviews(QUESTION, max_price=MAX_PRICE))["products"]
 
 
 def main() -> int:
