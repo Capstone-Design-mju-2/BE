@@ -270,6 +270,17 @@ class LlmChatTest(unittest.TestCase):
 
         self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
         self.assertIn("error", self.traces()[-1])
+        self.assertEqual(len(llm.requests), 2)
+
+    def test_마감이_지난_뒤에는_도구를_부르지_않고_1B_규칙으로_답한다(self):
+        # FakeLlm answers whatever time it is handed, as if its reply came back just at the deadline.
+        llm = FakeLlm(tool_call("search_products", {"q": "보습크림"}), final("찾았어요.", {}))
+        llm.timeout = 0
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertEqual(tools.calls, [("search_products", "수분크림", 30000, 5), ("check_inventory", [1, 2, 3])])
 
     def test_LLM_경로에서_catalog가_내려가면_1B도_실패해_오류_본문을_반환한다(self):
         tools = serve(None, INVENTORY, FakeLlm(tool_call("search_products", {"q": "수분크림"}),
