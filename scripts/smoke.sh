@@ -10,6 +10,8 @@ if [[ -f .env ]]; then
     source .env
     set +a
 fi
+# The smoke test checks the default catalog search; smoke_mcp.py checks the OpenSearch path on its own index.
+export SEARCH_BACKEND=catalog
 
 CATALOG_PID=""
 ORDER_PID=""
