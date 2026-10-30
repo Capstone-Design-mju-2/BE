@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
     llm_model: str = Field(default="openai/gpt-oss-20b", validation_alias="LLM_MODEL")
     llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
-    llm_timeout_seconds: float = Field(default=120.0, validation_alias="LLM_TIMEOUT_SECONDS")
+    llm_timeout_seconds: float = Field(default=60.0, validation_alias="LLM_TIMEOUT_SECONDS")
 
 
 settings = Settings()

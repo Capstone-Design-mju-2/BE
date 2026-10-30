@@ -15,14 +15,17 @@ class Llm:
         self._url = f"{base_url.rstrip('/')}/chat/completions"
         self._headers = {"Authorization": f"Bearer {api_key}"}
         self._model = model
-        self._timeout = timeout
+        self.timeout = timeout
 
-    async def complete(self, messages: list[dict[str, Any]],
-                       tools: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Return the assistant message and the token usage."""
+    async def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+                       timeout: float | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Return the assistant message and the token usage. timeout is what is left of the chat's limit."""
+        limit = self.timeout if timeout is None else timeout
         try:
+            if limit <= 0:
+                raise TimeoutError("no time left for another call")
             # httpx timeouts apply per read, so a server that keeps trickling bytes would never time out on its own.
-            async with asyncio.timeout(self._timeout), httpx.AsyncClient(timeout=self._timeout) as client:
+            async with asyncio.timeout(limit), httpx.AsyncClient(timeout=limit) as client:
                 response = await client.post(self._url, headers=self._headers,
                                              json={"model": self._model, "messages": messages, "tools": tools})
                 response.raise_for_status()

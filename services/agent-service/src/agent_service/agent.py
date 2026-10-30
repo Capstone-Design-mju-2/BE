@@ -61,8 +61,12 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
     products: list[dict] | None = None
     inventories: dict[int, dict] = {}
     search_failed = False
+    # The limit covers the whole chat so the screen has one wait to plan for. Tool calls are not cut short: the one
+    # running at the deadline goes on to its own limit (CALL_TIMEOUT_SECONDS), and the 1B fallback then makes its own
+    # search and inventory calls, so the chat can overrun by up to three tool calls.
+    deadline = time.monotonic() + llm.timeout
     for _ in range(MAX_ROUNDS):
-        reply, usage = await llm.complete(messages, tools.definitions)
+        reply, usage = await llm.complete(messages, tools.definitions, timeout=deadline - time.monotonic())
         trace["usage"].append(usage)
         if not isinstance(reply, dict):
             raise LlmError(f"assistant message is not an object: {reply!r}")
@@ -72,6 +76,8 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
             break
         messages.append({"role": "assistant", "content": reply.get("content") or "", "tool_calls": calls})
         for call in calls:
+            if time.monotonic() >= deadline:
+                raise LlmError("no time left for another tool call")
             try:
                 call_id, name, raw_arguments = call["id"], call["function"]["name"], call["function"]["arguments"]
             except (KeyError, TypeError) as error:

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 START_TIMEOUT_SECONDS = 30
 STOP_TIMEOUT_SECONDS = 10
 RECONNECT_WAIT_SECONDS = 10
-CALL_TIMEOUT_SECONDS = 8  # the tools' own HTTP timeout is 3 s, so a healthy call never gets near this
+CALL_TIMEOUT_SECONDS = 35  # must stay above the tools' own 30 s HTTP timeout, or a slow but healthy server is restarted
 BACKOFF_START_SECONDS = 0.2
 BACKOFF_MAX_SECONDS = 5.0
 
