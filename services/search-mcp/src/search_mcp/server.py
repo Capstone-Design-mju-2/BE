@@ -112,8 +112,9 @@ async def _search_reviews(q: str, max_price: int | None, category: str | None, b
         filters.append({"range": {"price": {"lte": max_price}}})
     if category is not None:
         filters.append({"term": {"category": category}})
-    if brand is not None:
-        filters.append({"term": {"brand": brand}})
+    # Like the catalog, surrounding spaces are dropped and a blank brand filters nothing.
+    if brand and brand.strip():
+        filters.append({"term": {"brand": brand.strip()}})
     must_not = []
     if excluded:
         # Same rule as the catalog: a product with no known ingredient list cannot be shown to lack one.
