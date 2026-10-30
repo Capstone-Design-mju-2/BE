@@ -52,7 +52,7 @@ services:
       - opensearch-data:/usr/share/opensearch/data
     mem_limit: 5g
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s"]
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
       interval: 5s
       timeout: 3s
       retries: 30
