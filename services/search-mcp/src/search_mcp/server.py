@@ -125,7 +125,7 @@ async def _search_reviews(q: str, max_price: int | None, category: str | None, b
         knn["filter"] = {"bool": {"filter": filters, "must_not": must_not}}
     body = {"size": CANDIDATES, "_source": ["review_id", "product_id", "content", "grade", "name", "brand", "price"],
             "query": {"knn": {"embedding": knn}}}
-    async with httpx.AsyncClient(timeout=3.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
         response.raise_for_status()
     return {"products": group_by_product([hit["_source"] for hit in response.json()["hits"]["hits"]], limit)}
