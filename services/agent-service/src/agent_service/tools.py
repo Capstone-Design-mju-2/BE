@@ -111,7 +111,9 @@ class _Session:
 
 class McpTools:
     def __init__(self) -> None:
-        self._search = _Session("search-mcp", {"CATALOG_SERVICE_URL": settings.catalog_service_url})
+        self._search = _Session("search-mcp", {"CATALOG_SERVICE_URL": settings.catalog_service_url,
+                                               "SEARCH_BACKEND": settings.search_backend,
+                                               "OPENSEARCH_URL": settings.opensearch_url})
         self._inventory = _Session("inventory-mcp", {"ORDER_SERVICE_URL": settings.order_service_url})
 
     async def __aenter__(self) -> "McpTools":

@@ -35,6 +35,30 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Review vectors for semantic search (ADR-98, ADR-101). 800k reviews at 16-bit need about 1.64 GiB of native memory
+  # outside the 1 GiB heap, and the node used 3.87 GiB once they were loaded: at 4 GiB the kernel killed it under 10
+  # concurrent searches. The k-NN breaker's default 50% of what the heap leaves measured as too small for them.
+  opensearch:
+    image: opensearchproject/opensearch:3.8.0
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+      knn.memory.circuit_breaker.limit: 75%
+    ports:
+      - "127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    mem_limit: 5g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
 volumes:
   catalog-db-data:
   order-db-data:
+  opensearch-data:
