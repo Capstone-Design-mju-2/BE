@@ -99,6 +99,39 @@ def compose(*args: str) -> None:
     subprocess.run(["docker", "compose", *args], cwd=ROOT, check=True, capture_output=True)
 
 
+def block_writes(on: bool) -> None:
+    """The write block OpenSearch also sets by itself when a disk fills up: every write fails until it is lifted."""
+    with httpx.Client(timeout=10.0) as client:
+        client.put(f"{OPENSEARCH_URL}/{INDEX}/_settings", json={"index.blocks.write": on}).raise_for_status()
+
+
+def one_document_per_product(client: httpx.Client, ids: list[int]) -> dict[int, str]:
+    body = {"size": len(ids), "query": {"terms": {"product_id": ids}}, "collapse": {"field": "product_id"},
+            "_source": ["product_id"]}
+    response = client.post(f"{OPENSEARCH_URL}/{INDEX}/_search", json=body)
+    response.raise_for_status()
+    return {hit["_source"]["product_id"]: hit["_id"] for hit in response.json()["hits"]["hits"]}
+
+
+def versions(client: httpx.Client, docs: dict[int, str]) -> dict[int, int]:
+    """Every rewrite raises a document's _version, so its growth counts the applications the server really made,
+    including ones whose response the writer never got."""
+    response = client.post(f"{OPENSEARCH_URL}/{INDEX}/_mget", params={"_source": "false"},
+                           json={"ids": list(docs.values())})
+    response.raise_for_status()
+    by_id = {doc["_id"]: doc["_version"] for doc in response.json()["docs"]}
+    return {product: by_id[doc] for product, doc in docs.items()}
+
+
+def applications(before: dict[int, int], after: dict[int, int]) -> dict:
+    counts: dict[int, list[int]] = {}
+    for product, version in after.items():
+        counts.setdefault(version - before[product], []).append(product)
+    return {"products": {str(n): len(p) for n, p in sorted(counts.items())},
+            "notApplied": sorted(counts.get(0, [])),
+            "appliedMoreThanOnce": sorted(p for n, ps in counts.items() if n > 1 for p in ps)}
+
+
 class Indexer:
     """The outbox poller as a child process the experiment can stop and start again."""
 
@@ -134,6 +167,10 @@ def run_once(conn, mode, changes, totals, args, indexer, label) -> dict:
         when, length = args.stop_indexer
         faults.append(at(when, indexer.stop))
         faults.append(at(when + length, indexer.start))
+    if args.block_writes:
+        when, length = args.block_writes
+        faults.append(at(when, lambda: block_writes(True)))
+        faults.append(at(when + length, lambda: block_writes(False)))
     watcher.start()
     sent = change_prices(changes, args.interval)
     for fault in faults:
@@ -186,6 +223,7 @@ def main() -> None:
     parser.add_argument("--settle", type=float, default=30.0, help="seconds to keep watching after the last change")
     parser.add_argument("--pause-opensearch", type=float, nargs=2, metavar=("AT", "FOR"))
     parser.add_argument("--stop-indexer", type=float, nargs=2, metavar=("AT", "FOR"))
+    parser.add_argument("--block-writes", type=float, nargs=2, metavar=("AT", "FOR"))
     parser.add_argument("--seed", default="1031")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
@@ -197,7 +235,9 @@ def main() -> None:
         original = dict(sample(conn, args.products, args.seed))
         with httpx.Client(timeout=10.0) as client:
             totals = doc_counts(client, list(original))
-        original = {i: p for i, p in original.items() if totals.get(i)}
+            original = {i: p for i, p in original.items() if totals.get(i)}
+            docs = one_document_per_product(client, list(original))
+            before = versions(client, docs)
         if indexer is not None:
             indexer.start()
             # Changes sent while it is still starting would count its start-up as sync delay.
@@ -206,11 +246,22 @@ def main() -> None:
             changed = run_once(conn, args.mode, [(i, p + PRICE_STEP) for i, p in original.items()], totals, args,
                                indexer, "change")
             changed["repeatedApplications"] = repeated(apply_log, changed["firstEventId"])
-            restore_args = argparse.Namespace(**{**vars(args), "pause_opensearch": None, "stop_indexer": None})
+            with httpx.Client(timeout=10.0) as client:
+                middle = versions(client, docs)
+            changed["serverApplications"] = applications(before, middle)
+            restore_args = argparse.Namespace(**{**vars(args), "pause_opensearch": None, "stop_indexer": None,
+                                                 "block_writes": None})
             restored = run_once(conn, args.mode, list(original.items()), totals, restore_args, indexer, "restore")
+            with httpx.Client(timeout=10.0) as client:
+                restored["serverApplications"] = applications(middle, versions(client, docs))
         finally:
             if indexer is not None:
                 indexer.stop()
+            if args.block_writes:
+                block_writes(False)
+            if args.pause_opensearch:
+                # Not checked: it fails on a running container, which is the case unless the run broke mid-pause.
+                subprocess.run(["docker", "compose", "unpause", "opensearch"], cwd=ROOT, capture_output=True)
         db = dict(conn.execute("SELECT id, price FROM products WHERE id = ANY(%s)", (list(original),)).fetchall())
         with httpx.Client(timeout=30.0) as client:
             landed = doc_counts(client, list(original), db)
@@ -222,6 +273,7 @@ def main() -> None:
                             ).raise_for_status()
     result = {"mode": args.mode, "products": len(original), "reviewDocuments": sum(totals[i] for i in original),
               "interval": args.interval, "pauseOpenSearch": args.pause_opensearch, "stopIndexer": args.stop_indexer,
+              "blockWrites": args.block_writes,
               "dbPricesRestored": all(db[i] == p for i, p in original.items()), "indexRepairedAfterRestore": repaired,
               "change": changed, "restore": restored}
     args.out.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
