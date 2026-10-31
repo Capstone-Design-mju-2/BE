@@ -100,7 +100,7 @@ def compose(*args: str) -> None:
 
 
 def block_writes(on: bool) -> None:
-    """The write block OpenSearch also sets by itself when a disk fills up: every write fails until it is lifted."""
+    """A write block on the review index: every write to it fails with 403 until the block is lifted."""
     with httpx.Client(timeout=10.0) as client:
         client.put(f"{OPENSEARCH_URL}/{INDEX}/_settings", json={"index.blocks.write": on}).raise_for_status()
 
