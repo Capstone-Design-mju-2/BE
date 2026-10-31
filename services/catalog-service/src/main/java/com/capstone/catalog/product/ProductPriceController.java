@@ -12,8 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Price changes for the sync experiment (ADR-121). Collected prices are otherwise fixed at the collection date, so
- * nothing else changes a product after loading.
+ * Price changes for the sync experiment (ADR-121). Collected prices otherwise change only when a product is collected
+ * and loaded again.
  */
 @RestController
 @RequestMapping("/internal/products")

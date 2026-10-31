@@ -16,6 +16,7 @@ import json
 import os
 import statistics
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -106,7 +107,8 @@ class Indexer:
         self.process: subprocess.Popen | None = None
 
     def start(self) -> None:
-        self.process = subprocess.Popen(["uv", "run", "--package", "indexer", "indexer"], cwd=ROOT, env=self.env,
+        # The interpreter itself rather than `uv run`, so stopping it really stops the poller.
+        self.process = subprocess.Popen([sys.executable, "-m", "indexer.main"], cwd=ROOT, env=self.env,
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def stop(self) -> None:
@@ -198,6 +200,8 @@ def main() -> None:
         original = {i: p for i, p in original.items() if totals.get(i)}
         if indexer is not None:
             indexer.start()
+            # Changes sent while it is still starting would count its start-up as sync delay.
+            time.sleep(5)
         try:
             changed = run_once(conn, args.mode, [(i, p + PRICE_STEP) for i, p in original.items()], totals, args,
                                indexer, "change")
