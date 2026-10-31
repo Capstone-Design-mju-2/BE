@@ -6,7 +6,7 @@ SEARCH_BACKEND=opensearch uv run --package agent-service python eval/run_baselin
 Quality is scored against eval/quality-judgments.json. Latency is measured client side, one HTTP search call
 from send to full body, after one warmup round.
 
-With SEARCH_BACKEND=opensearch the search goes through search-mcp's search_products with the same extracted q, or
+With SEARCH_BACKEND=opensearch the search goes through search-mcp's search_reviews with the same extracted q, or
 with the whole question as q (--question). Its latency covers the OpenSearch call from search-mcp only: questions
 are embedded once beforehand, as the catalog latency does not include an embedding either.
 """
@@ -52,8 +52,8 @@ def search_params(text: str) -> dict | None:
 
 def search(params: dict) -> list[dict]:
     if BACKEND == "opensearch":
-        found = asyncio.run(server.search_products(params["q"], max_price=params.get("maxPrice"),
-                                                   limit=params["limit"]))
+        found = asyncio.run(server.search_reviews(params["q"], max_price=params.get("maxPrice"),
+                                                  limit=params["limit"]))
         return found["products"]
     with urllib.request.urlopen(f"{CATALOG_URL}/api/v1/products/search?{urllib.parse.urlencode(params)}") as r:
         return json.load(r)["products"]
