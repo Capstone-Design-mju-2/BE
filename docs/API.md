@@ -185,6 +185,7 @@ GET /api/v1/products/{productId}/reviews?sort=recent&skinType=dry&page=0&size=20
 - 정렬 값이 같으면 최신순, 그다음 `reviewId` 큰 순으로 이어 정렬해서 페이지끼리 겹치지 않는다. `page`가 마지막 쪽을 넘으면 `reviews`는 빈 배열이다.
 - `total`은 수집해 둔 리뷰 수다. 리뷰는 상품마다 최대 300개까지만 수집해 두어서, 상품 목록의 `reviewCount`(수집 당시 무신사의 전체 리뷰 수)보다 작을 수 있다.
 - `writtenAt`은 작성 시각의 한국 시간 날짜다.
+- `optionText`는 작성자가 산 옵션 이름이고, 옵션이 없으면 `null`이다.
 - `skinType`은 작성자가 고른 값이고, 고르지 않았으면 `null`이다(지금 데이터에서 리뷰의 32.5%). 드물게 `dehydrated_oily`, `normal`, `trouble_prone`도 온다(합쳐 0.1%).
 - 작성자 키·몸무게 구간과 성별은 주지 않는다.
 - 없는 상품은 404 `PRODUCT_NOT_FOUND`, 범위를 벗어난 파라미터는 400 `INVALID_REVIEW_LIST`다.

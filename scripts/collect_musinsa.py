@@ -76,6 +76,11 @@ def bucket(value: int, step: int, low: int, high: int) -> tuple[int | None, int 
 
 
 def to_review(raw: dict, collected_on: str) -> dict:
+    """
+    >>> [to_review({"no": 1, "grade": "5", "createDate": "2026-09-01", "goodsOption": option}, "2026-09-30")
+    ...  ["optionText"] for option in ("50ml", "FREE", "none", "NONE", "", None)]
+    ['50ml', 'FREE', None, None, None, None]
+    """
     profile = raw.get("userProfileInfo") or {}
     height = bucket(profile.get("userHeight") or 0, 5, 140, 200)
     weight = bucket(profile.get("userWeight") or 0, 5, 35, 120)
@@ -84,7 +89,8 @@ def to_review(raw: dict, collected_on: str) -> dict:
         "content": mask(raw.get("content") or ""),
         "grade": int(raw["grade"]),
         "likeCount": raw.get("likeCount") or 0,
-        "optionText": None if raw.get("goodsOption") in (None, "", "NONE") else raw["goodsOption"],
+        # Musinsa marks a review without an option as "NONE" or "none".
+        "optionText": None if (raw.get("goodsOption") or "NONE").upper() == "NONE" else raw["goodsOption"],
         "skinType": profile.get("skinType") or None,
         "skinTone": profile.get("skinTone") or None,
         "gender": profile.get("reviewSex") or None,
