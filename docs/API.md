@@ -123,7 +123,7 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 GET /api/v1/products?category=104001&sort=popular&page=0&size=20
 ```
 
-메인 화면의 카테고리 목록과 랭킹이 부른다. 아직 구현 전이다(10주차, FE 이슈 #10).
+메인 화면의 카테고리 목록과 랭킹이 부른다.
 
 | 파라미터 | 필수 | 설명 |
 |---|---|---|
@@ -147,10 +147,10 @@ GET /api/v1/products?category=104001&sort=popular&page=0&size=20
 ```
 
 - 메인 화면 랭킹은 `sort=popular`로 부른다.
-- 정렬 값이 같으면 `productId` 순으로 이어 정렬해서 페이지끼리 겹치지 않는다.
+- 정렬 값이 같으면 `productId` 순으로 이어 정렬해서 페이지끼리 겹치지 않는다. `page`가 마지막 쪽을 넘으면 `products`는 빈 배열이고 `total`은 그대로다.
 - `reviewScore`는 수집한 평점 그대로 0~100이다.
 - 상품 이미지는 수집하지 않아 응답에 없다.
-- 없는 카테고리 코드나 범위를 벗어난 `page`·`size`·`sort`는 400 `INVALID_PRODUCT_LIST`다.
+- 없는 카테고리 코드(상품이 하나도 없는 코드)나 범위를 벗어난 `page`·`size`·`sort`는 400 `INVALID_PRODUCT_LIST`다.
 
 ### 리뷰 조회
 
@@ -158,7 +158,7 @@ GET /api/v1/products?category=104001&sort=popular&page=0&size=20
 GET /api/v1/products/{productId}/reviews?sort=recent&skinType=dry&page=0&size=20
 ```
 
-상품 하나의 리뷰를 나눠 준다. 아직 구현 전이다(10주차, FE 이슈 #10).
+상품 하나의 리뷰를 나눠 준다.
 
 | 파라미터 | 필수 | 설명 |
 |---|---|---|
@@ -182,6 +182,9 @@ GET /api/v1/products/{productId}/reviews?sort=recent&skinType=dry&page=0&size=20
 ```
 
 - 리뷰 본문은 자르지 않고 준다.
+- 정렬 값이 같으면 최신순, 그다음 `reviewId` 큰 순으로 이어 정렬해서 페이지끼리 겹치지 않는다. `page`가 마지막 쪽을 넘으면 `reviews`는 빈 배열이다.
+- `total`은 수집해 둔 리뷰 수다. 리뷰는 상품마다 최대 300개까지만 수집해 두어서, 상품 목록의 `reviewCount`(수집 당시 무신사의 전체 리뷰 수)보다 작을 수 있다.
+- `writtenAt`은 작성 시각의 한국 시간 날짜다.
 - `skinType`은 작성자가 고른 값이고, 고르지 않았으면 `null`이다(지금 데이터에서 리뷰의 32.5%). 드물게 `dehydrated_oily`, `normal`, `trouble_prone`도 온다(합쳐 0.1%).
 - 작성자 키·몸무게 구간과 성별은 주지 않는다.
 - 없는 상품은 404 `PRODUCT_NOT_FOUND`, 범위를 벗어난 파라미터는 400 `INVALID_REVIEW_LIST`다.
@@ -367,6 +370,8 @@ Catalog API (catalog-service)
 - `maxPrice`를 넘는 상품이 결과에 없다.
 - 결과의 모든 상품이 `evidence`를 1개 이상 가진다.
 - `limit`보다 많은 상품을 반환하지 않는다.
+- 카테고리별 상품 목록을 같은 정렬로 0쪽과 1쪽 받으면 겹치는 상품이 없다.
+- 리뷰 조회에 `skinType`을 주면 그 피부 타입 작성자의 리뷰만 돌아오고, 없는 상품은 404다.
 
 Agent API (agent-service)
 
