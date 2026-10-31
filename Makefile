@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: bootstrap dependencies-update build check smoke infra-up infra-down infra-reset reset-inventory run-catalog run-order run-agent run-search-mcp run-inventory-mcp
+.PHONY: bootstrap dependencies-update build check smoke infra-up infra-down infra-reset reset-inventory run-catalog run-order run-agent run-search-mcp run-inventory-mcp run-indexer
 
 bootstrap:
 	./gradlew --version
@@ -17,14 +17,15 @@ dependencies-update:
 
 build:
 	./gradlew clean build
-	uv run python -m compileall services/agent-service/src services/search-mcp/src services/inventory-mcp/src
+	uv run python -m compileall services/agent-service/src services/search-mcp/src services/inventory-mcp/src services/indexer/src
 
 check:
 	docker compose config --quiet
 	./gradlew clean build
 	uv lock --check
-	uv run python -m compileall -q services/agent-service/src services/search-mcp/src services/inventory-mcp/src
+	uv run python -m compileall -q services/agent-service/src services/search-mcp/src services/inventory-mcp/src services/indexer/src
 	uv run --package agent-service python -m unittest discover -s services/agent-service/tests
+	uv run --package indexer python -m doctest services/indexer/src/indexer/main.py
 	uv run --package agent-service python -m doctest services/agent-service/src/agent_service/agent.py
 	SEARCH_BACKEND=catalog uv run --package search-mcp python -m doctest services/search-mcp/src/search_mcp/server.py
 	uv run python -m doctest services/agent-service/src/agent_service/extract.py scripts/seed_inventory.py scripts/collect_musinsa.py scripts/collect_options.py scripts/load_catalog.py scripts/load_ingredients.py scripts/collect_essentials.py scripts/embed_reviews.py scripts/index_reviews.py scripts/bench_orders.py
@@ -60,3 +61,6 @@ run-search-mcp:
 
 run-inventory-mcp:
 	uv run --package inventory-mcp inventory-mcp
+
+run-indexer:
+	uv run --package indexer indexer

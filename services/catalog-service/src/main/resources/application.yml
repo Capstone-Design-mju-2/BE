@@ -28,3 +28,12 @@ management:
       probes:
         enabled: true
       show-details: never
+
+catalog:
+  # How a price change reaches the review index (ADR-121): none, dual-write or outbox.
+  index-sync: ${CATALOG_INDEX_SYNC:none}
+  opensearch:
+    url: ${OPENSEARCH_URL:http://127.0.0.1:9200}
+    index: ${OPENSEARCH_INDEX:reviews}
+    # A paused OpenSearch holds the price API this long before the dual write gives up.
+    timeout-millis: 2000
