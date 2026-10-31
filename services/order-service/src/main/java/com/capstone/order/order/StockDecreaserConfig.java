@@ -15,6 +15,8 @@ public class StockDecreaserConfig {
         return switch (strategy) {
             case "none" -> new NoLockStockDecreaser(inventoryRepository);
             case "conditional" -> new ConditionalUpdateStockDecreaser(inventoryRepository);
+            case "pessimistic" -> new PessimisticLockStockDecreaser(inventoryRepository);
+            case "optimistic" -> new OptimisticLockStockDecreaser(inventoryRepository);
             default -> throw new IllegalArgumentException("알 수 없는 order.stock-strategy: " + strategy);
         };
     }

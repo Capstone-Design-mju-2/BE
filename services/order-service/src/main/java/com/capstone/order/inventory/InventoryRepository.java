@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
@@ -27,5 +29,21 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     int decreaseIfEnough(@Param("productId") Long productId,
                          @Param("optionKey") String optionKey,
                          @Param("qty") int qty);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i WHERE i.productId = :productId AND i.optionKey = :optionKey")
+    Optional<Inventory> findForUpdate(@Param("productId") Long productId,
+                                      @Param("optionKey") String optionKey);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE Inventory i
+               SET i.quantity = i.quantity - :qty, i.version = i.version + 1
+             WHERE i.id = :id
+               AND i.version = :version
+            """)
+    int decreaseIfVersion(@Param("id") Long id,
+                          @Param("version") long version,
+                          @Param("qty") int qty);
 }
 

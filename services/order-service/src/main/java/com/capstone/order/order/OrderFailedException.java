@@ -4,7 +4,7 @@ import com.capstone.order.inventory.Inventory;
 
 public class OrderFailedException extends RuntimeException {
 
-    public enum Reason { OUT_OF_STOCK, INSUFFICIENT_STOCK, OPTION_NOT_FOUND }
+    public enum Reason { OUT_OF_STOCK, INSUFFICIENT_STOCK, OPTION_NOT_FOUND, CONCURRENT_UPDATE }
 
     private final Reason reason;
     private final Long productId;
@@ -36,5 +36,10 @@ public class OrderFailedException extends RuntimeException {
 
     public static OrderFailedException notFound(Long productId, String optionKey, int requested) {
         return new OrderFailedException(Reason.OPTION_NOT_FOUND, productId, optionKey, requested, 0);
+    }
+
+    public static OrderFailedException conflict(Inventory inventory, int requested) {
+        return new OrderFailedException(Reason.CONCURRENT_UPDATE, inventory.getProductId(),
+                inventory.getOptionKey(), requested, inventory.getQuantity());
     }
 }
