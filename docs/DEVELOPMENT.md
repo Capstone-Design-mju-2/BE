@@ -121,7 +121,7 @@ CATALOG_INDEX_SYNC=outbox make run-catalog
 uv run --package indexer python scripts/bench_index_sync.py outbox --pause-opensearch 5 10 --out .local/bench/index-sync/outbox-pause.json
 ```
 
-`bench_index_sync.py`는 상품 100개의 가격을 0.2초 간격으로 바꾸고, 변경 요청부터 검색에 보이기까지 걸린 시간, 끝내 반영되지 않은 상품(유실), 인덱서가 두 번 이상 반영한 이벤트를 센다. `--pause-opensearch`는 OpenSearch 컨테이너를 잠시 멈추고, `--stop-indexer`는 인덱서를 잠시 내린다. outbox 모드에서는 스크립트가 인덱서를 직접 띄운다. 끝나면 같은 API로 가격을 되돌린다.
+`bench_index_sync.py`는 상품 100개의 가격을 0.2초 간격으로 바꾸고, 변경 요청부터 검색에 보이기까지 걸린 시간, 끝내 반영되지 않은 상품(유실), 두 번 이상 반영된 변경을 센다. 두 번 반영은 인덱서 기록과 함께, 상품마다 리뷰 문서 하나의 `_version` 증가분으로도 센다. 인덱서 기록은 응답을 받은 반영만 남기므로, 시간 초과된 요청이 서버에서 처리된 경우는 `_version`에만 잡힌다. `--pause-opensearch`는 OpenSearch 컨테이너를 잠시 멈추고(멈춘 동안 받은 요청이 풀린 뒤 처리될 수 있다), `--block-writes`는 리뷰 인덱스의 쓰기를 잠시 막고(그동안 쓰기는 403으로 실패한다), `--stop-indexer`는 인덱서를 잠시 내린다. outbox 모드에서는 스크립트가 인덱서를 직접 띄운다. 끝나면 같은 API로 가격을 되돌린다.
 
 ## 5. 검증
 
