@@ -14,7 +14,7 @@
 { "code": "PRODUCT_SEARCH_FAILED", "message": "상품 검색에 실패했습니다." }
 ```
 
-- 페이지네이션은 두지 않는다. `limit`만 쓴다.
+- 검색은 `limit`만 쓴다. 목록 API(카테고리별 상품, 리뷰 조회)만 `page`·`size`로 나눠 준다.
 - 대화 기록 식별자는 두지 않는다. 저장 여부가 미정이다.
 
 ## 1. Agent API
@@ -30,6 +30,12 @@ POST /api/v1/chat
 ```
 
 `message`는 1자 이상 500자 이하다. 벗어나거나 없으면 400과 `{ "code": "INVALID_CHAT_REQUEST", "message": "..." }`를 반환한다.
+
+`skinType`은 선택이다(아직 구현 전이다. 11주차, FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르지는 않는다. 다른 값이면 400 `INVALID_CHAT_REQUEST`다.
+
+```json
+{ "message": "끈적이지 않는 수분크림 추천해 줘", "skinType": "dry" }
+```
 
 응답
 
@@ -68,6 +74,8 @@ POST /api/v1/chat
 
 `reason`은 LLM이 `evidence`를 읽고 쓴다. `evidence` 없이 생성하지 않는다. 생성 문장과 원본 리뷰를 함께 남겨야 오작동률을 측정할 수 있다.
 
+`skinType`을 구현하면 `evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이다.
+
 ## 2. Catalog API
 
 ```text
@@ -105,9 +113,78 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 - `evidence`는 상품당 최대 2개다. `q`가 리뷰 본문에 걸린 리뷰를 별점 높은 순으로 고르고, 동점이면 최신순으로 고른다. `q`가 상품명에만 걸려 리뷰 본문에 걸린 리뷰가 없는 상품은 같은 정렬로 그 상품의 전체 리뷰에서 고른다. 리뷰가 하나도 없는 상품은 결과에서 뺀다. 이 정렬 규칙은 잠정값이며 검색 품질 측정 후 바꿀 수 있다.
 - `excerpt`는 80자를 넘기지 않는다. LLM 입력 토큰은 이 값에 비례한다.
 - `excerpt`는 `q`가 든 문장의 처음부터 보여준다. 문장은 줄바꿈이나 띄어쓰기가 뒤따르는 `.` `!` `?`에서 나눈다. 문장 처음부터 `q`까지가 80자를 넘으면 `q` 앞쪽 단어 처음부터 `…`를 붙여 보여준다.
-- 피부 타입 필터는 두지 않는다. "건성"은 리뷰 본문 키워드로 걸린다.
+- 피부 타입으로 상품을 거르지는 않는다. "건성"은 리뷰 본문 키워드로 걸린다. 채팅의 `skinType`(11주차)은 근거 리뷰를 고르는 순서에만 쓴다.
 - `category`와 `brand`는 질문에서 LLM이 도구 인자로 채운다.
 - `excludeIngredient`는 성분표의 성분 이름과 정확히 같아야 한다. LLM은 MCP 도구에서 향료·알코올·미네랄오일 중에 고르고, search-mcp가 실제 성분 이름(알코올이면 에탄올·변성알코올·알코올·아이소프로필알코올)으로 바꿔 보낸다.
+
+### 카테고리별 상품 목록
+
+```text
+GET /api/v1/products?category=104001&sort=popular&page=0&size=20
+```
+
+메인 화면의 카테고리 목록과 랭킹이 부른다. 아직 구현 전이다(10주차, FE 이슈 #10).
+
+| 파라미터 | 필수 | 설명 |
+|---|---|---|
+| `category` | O | 카테고리 코드 6자리 |
+| `sort` | X | `popular`(리뷰 수 많은 순, 기본), `rating`(평점 높은 순), `priceAsc`, `priceDesc` |
+| `page` | X | 0부터 센다. 기본 0 |
+| `size` | X | 기본 20, 최대 50 |
+
+응답
+
+```json
+{
+  "category": "104001",
+  "page": 0,
+  "size": 20,
+  "total": 2185,
+  "products": [
+    { "productId": 101, "name": "수분크림 A", "brand": "브랜드 A", "price": 25900, "reviewCount": 1520, "reviewScore": 96 }
+  ]
+}
+```
+
+- 메인 화면 랭킹은 `sort=popular`로 부른다.
+- 정렬 값이 같으면 `productId` 순으로 이어 정렬해서 페이지끼리 겹치지 않는다.
+- `reviewScore`는 수집한 평점 그대로 0~100이다.
+- 상품 이미지는 수집하지 않아 응답에 없다.
+- 없는 카테고리 코드나 범위를 벗어난 `page`·`size`·`sort`는 400 `INVALID_PRODUCT_LIST`다.
+
+### 리뷰 조회
+
+```text
+GET /api/v1/products/{productId}/reviews?sort=recent&skinType=dry&page=0&size=20
+```
+
+상품 하나의 리뷰를 나눠 준다. 아직 구현 전이다(10주차, FE 이슈 #10).
+
+| 파라미터 | 필수 | 설명 |
+|---|---|---|
+| `sort` | X | `recent`(최신순, 기본), `rating`(별점 높은 순), `likes`(좋아요 많은 순) |
+| `skinType` | X | `dry`, `oily`, `combination`, `sensitive`. 주면 그 피부 타입 작성자의 리뷰만 준다 |
+| `page` | X | 0부터 센다. 기본 0 |
+| `size` | X | 기본 20, 최대 50 |
+
+응답
+
+```json
+{
+  "productId": 101,
+  "page": 0,
+  "size": 20,
+  "total": 285,
+  "reviews": [
+    { "reviewId": 9001, "rating": 5, "content": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry", "optionText": "50ml", "likeCount": 3, "writtenAt": "2026-08-01" }
+  ]
+}
+```
+
+- 리뷰 본문은 자르지 않고 준다.
+- `skinType`은 작성자가 고른 값이고, 고르지 않았으면 `null`이다(지금 데이터에서 리뷰의 32.5%). 드물게 `dehydrated_oily`, `normal`, `trouble_prone`도 온다(합쳐 0.1%).
+- 작성자 키·몸무게 구간과 성별은 주지 않는다.
+- 없는 상품은 404 `PRODUCT_NOT_FOUND`, 범위를 벗어난 파라미터는 400 `INVALID_REVIEW_LIST`다.
 
 ### 상품·리뷰 적재 (수집기 전용)
 
