@@ -106,6 +106,23 @@ uv run --package search-mcp --extra embed python scripts/index_reviews.py
 
 `embed_reviews.py`는 벡터를 `.local/embeddings/`에 1만 개씩 저장하고, 멈췄다 다시 실행하면 끝난 묶음을 건너뛴다. `index_reviews.py`는 같은 이름의 인덱스를 지우고 다시 만든다. 리뷰 문서마다 상품명·브랜드·가격·카테고리·성분을 복사해 넣으므로, 색인한 뒤 catalog에서 바뀐 상품 정보는 다시 색인할 때까지 반영되지 않는다. 이 어긋남은 `uv run --package search-mcp --extra embed python scripts/repro_index_mismatch.py`로 재현한다. 검색 1위 상품의 catalog 가격을 잠시 올렸다가 끝나면 되돌린다. search-mcp는 시작할 때 모델을 읽어 들이는 데 약 10초가 걸린다. 스모크 테스트는 모델 없이 `scripts/fixtures/`의 지어낸 리뷰와 미리 계산한 질문 벡터로 OpenSearch 경로를 확인한다. 픽스처는 `scripts/make_search_fixture.py`로 다시 만든다.
 
+### 검색 인덱스 동기화 실험 (이중 쓰기, Outbox)
+
+catalog에서 바꾼 상품 가격을 리뷰 문서에 반영하는 두 방식을 비교한다(ADR-121). 실험용 가격 변경 API `PUT /internal/products/{id}/price`가 `CATALOG_INDEX_SYNC`에 따라 다르게 동작한다.
+
+| 값 | 동작 |
+|---|---|
+| `none`(기본) | DB만 바꾼다 |
+| `dual-write` | 커밋한 뒤 catalog-service가 OpenSearch를 직접 고친다. 실패하면 로그만 남는다 |
+| `outbox` | 같은 트랜잭션에 `outbox` 행을 남기고, 인덱서(`make run-indexer`)가 1초마다 읽어 반영한다 |
+
+```bash
+CATALOG_INDEX_SYNC=outbox make run-catalog
+uv run --package indexer python scripts/bench_index_sync.py outbox --pause-opensearch 5 10 --out .local/bench/index-sync/outbox-pause.json
+```
+
+`bench_index_sync.py`는 상품 100개의 가격을 0.2초 간격으로 바꾸고, 변경 요청부터 검색에 보이기까지 걸린 시간, 끝내 반영되지 않은 상품(유실), 인덱서가 두 번 이상 반영한 이벤트를 센다. `--pause-opensearch`는 OpenSearch 컨테이너를 잠시 멈추고, `--stop-indexer`는 인덱서를 잠시 내린다. outbox 모드에서는 스크립트가 인덱서를 직접 띄운다. 끝나면 같은 API로 가격을 되돌린다.
+
 ## 5. 검증
 
 정적 빌드와 잠금파일 검증:

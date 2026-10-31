@@ -3,4 +3,5 @@ members = [
     "services/agent-service",
     "services/search-mcp",
     "services/inventory-mcp",
+    "services/indexer",
 ]
