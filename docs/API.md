@@ -158,6 +158,37 @@ POST /api/v1/inventories/check
 
 order-service는 `UNKNOWN`을 반환하지 않는다. 호출 실패를 품절로 표시하지 않으려고 agent가 채우는 값이다.
 
+### 옵션 조회
+
+```text
+GET /api/v1/inventories/{productId}/options
+```
+
+주문 화면이 옵션을 고를 때 부른다. 아직 구현 전이다(10주차, 이슈 #28).
+
+응답 (200)
+
+```json
+{
+  "productId": 101,
+  "options": [
+    { "optionKey": "11", "name": "수분크림 A 50ml",     "price": 12900, "quantity": 12, "status": "IN_STOCK" },
+    { "optionKey": "12", "name": "수분크림 A 50ml 2개", "price": 23900, "quantity": 0,  "status": "OUT_OF_STOCK" }
+  ]
+}
+```
+
+- `price`는 그 옵션으로 주문할 때 `unitPrice`에 복사되는 값이다. 주문 화면은 이 가격을 보여 준다. 채팅 카드의 `price`는 상품 대표 가격이라 옵션 가격과 다를 수 있다.
+- `status`는 `quantity`가 1 이상이면 `IN_STOCK`, 0이면 `OUT_OF_STOCK`이다.
+- 옵션은 `optionKey` 순서로 준다.
+- 경로를 `/api/v1/inventories` 아래에 두어, 서비스마다 경로 앞부분이 겹치지 않는다(catalog는 `/api/v1/products`).
+
+order DB에 옵션이 하나도 없는 상품은 404를 반환한다.
+
+```json
+{ "code": "PRODUCT_NOT_FOUND", "message": "옵션 정보가 없는 상품입니다." }
+```
+
 ### 재고 적재 (수집기 전용)
 
 POST /api/v1/internal/inventories/load
@@ -207,6 +238,7 @@ POST /api/v1/orders
 ```json
 {
   "ordererKey": "demo",
+  "requestId": "5f0c6a3e-8b1d-4e2a-9c7f-3d2b1a0e9f84",
   "items": [
     { "productId": 101, "optionKey": "11", "quantity": 2 },
     { "productId": 102, "optionKey": "31", "quantity": 1 }
@@ -231,9 +263,17 @@ POST /api/v1/orders
 - 같은 옵션이 여러 번 들어오면 수량을 합쳐 한 항목으로 처리한다.
 - `unitPrice`는 주문 시점의 옵션 가격을 복사해 저장한다. 이후 가격이 바뀌어도 주문 내역은 바뀌지 않는다.
 - `quantity`는 1~99 정수다. 한 요청의 항목은 최대 20개다.
-- `ordererKey`, `optionKey`는 100자 이하다. 범위를 벗어나면 400을 반환한다.
+- `ordererKey`, `optionKey`, `requestId`는 100자 이하다. 범위를 벗어나면 400을 반환한다.
 - 시연 단계에서 `ordererKey`는 고정값 `"demo"`를 쓴다.
-- 취소·환불은 없다. 시연용 재고는 별도 리셋 수단으로 되돌린다.
+- 취소·환불은 없다. 시연용 재고는 `make reset-inventory CONFIRM=1`로 재고 테이블을 비운 뒤 다시 적재해 되돌린다.
+
+같은 주문을 다시 보낼 때 (`requestId`, 아직 구현 전이다. 10주차, 이슈 #28)
+
+- `requestId`는 선택이다. 주문 시도 하나마다 새로 만든 값(UUID 등)을 보낸다.
+- 같은 `requestId`로 다시 오면 재고를 다시 줄이지 않고, 처음 만든 주문을 201과 같은 본문으로 돌려준다. 응답이 끊겨 결과를 모를 때는 같은 `requestId`로 다시 보내면 된다.
+- 같은 `requestId`가 동시에 두 번 와도 주문은 하나만 생긴다(`orders.request_id` 고유 제약).
+- 실패 응답은 기록하지 않는다. 실패한 주문의 `requestId`로 다시 보내면 그 시점의 재고로 다시 시도한다.
+- 같은 `requestId`에 다른 항목을 보내도 처음 주문을 돌려준다. 항목이 같은지는 비교하지 않는다.
 
 실패 응답
 
