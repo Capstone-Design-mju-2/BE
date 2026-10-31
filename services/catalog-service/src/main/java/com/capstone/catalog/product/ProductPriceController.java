@@ -39,11 +39,12 @@ public class ProductPriceController {
             return ResponseEntity.notFound().build();
         }
         if (indexSync == IndexSync.DUAL_WRITE) {
-            // The price is already committed, so a failure here leaves the index behind. The experiment counts these.
+            // The price is already committed, so a failure here can leave the index behind. After a timeout the
+            // update may still land later, so the log cannot tell which happened.
             try {
                 reviewIndex.updatePrice(productId, request.price());
             } catch (RuntimeException e) {
-                log.warn("Review index kept the old price of product {}", productId, e);
+                log.warn("Review index may still have the old price of product {}", productId, e);
             }
         }
         return ResponseEntity.ok(new PriceResponse(productId, request.price()));
