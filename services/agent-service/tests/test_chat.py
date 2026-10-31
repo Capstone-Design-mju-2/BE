@@ -1,5 +1,6 @@
 """uv run --package agent-service python -m unittest discover -s services/agent-service/tests"""
 
+import asyncio
 import json
 import tempfile
 import unittest
@@ -60,16 +61,34 @@ class FakeTools:
 class FakeLlm:
     """Plays back assistant messages in order; an exception in the script is raised instead."""
 
+    timeout = 60.0
+
     def __init__(self, *replies):
         self.replies = list(replies)
         self.requests = []
 
-    async def complete(self, messages, tools):
+    async def complete(self, messages, tools, timeout=None):
         self.requests.append(list(messages))
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
         return reply, {"total_tokens": 100}
+
+
+class SlowLlm(FakeLlm):
+    """Each call takes `delay` seconds and, like Llm, gives up when the time it is handed runs out."""
+
+    def __init__(self, delay, *replies):
+        super().__init__(*replies)
+        self.delay = delay
+
+    async def complete(self, messages, tools, timeout=None):
+        try:
+            async with asyncio.timeout(timeout):
+                await asyncio.sleep(self.delay)
+        except TimeoutError as error:
+            raise LlmError("timed out") from error
+        return await super().complete(messages, tools, timeout)
 
 
 def tool_call(name, arguments):
@@ -239,6 +258,29 @@ class LlmChatTest(unittest.TestCase):
                 self.assertEqual(tools.calls[-2:], [("search_products", "수분크림", 30000, 5),
                                                     ("check_inventory", [1, 2, 3])])
                 self.assertIn("error", self.traces()[-1])
+
+    def test_LLM_시간_제한은_호출마다가_아니라_질문_하나_전체에_걸린다(self):
+        # Each 0.2s call fits the 0.5s limit on its own; the third one does not fit what is left.
+        llm = SlowLlm(0.2, tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+                      final("찾았어요.", {}))
+        llm.timeout = 0.5
+        serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertIn("error", self.traces()[-1])
+        self.assertEqual(len(llm.requests), 2)
+
+    def test_마감이_지난_뒤에는_도구를_부르지_않고_1B_규칙으로_답한다(self):
+        # FakeLlm answers whatever time it is handed, as if its reply came back just at the deadline.
+        llm = FakeLlm(tool_call("search_products", {"q": "보습크림"}), final("찾았어요.", {}))
+        llm.timeout = 0
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertEqual(tools.calls, [("search_products", "수분크림", 30000, 5), ("check_inventory", [1, 2, 3])])
 
     def test_LLM_경로에서_catalog가_내려가면_1B도_실패해_오류_본문을_반환한다(self):
         tools = serve(None, INVENTORY, FakeLlm(tool_call("search_products", {"q": "수분크림"}),

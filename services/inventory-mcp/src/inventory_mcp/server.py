@@ -27,7 +27,7 @@ def health() -> dict[str, str]:
 @server.tool()
 async def check_inventory(product_ids: list[int]) -> dict[str, Any]:
     """Check stock for up to 20 product ids and return one entry per requested id."""
-    async with httpx.AsyncClient(timeout=3.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{ORDER_SERVICE_URL}/api/v1/inventories/check",
                                      json={"productIds": product_ids})
         response.raise_for_status()

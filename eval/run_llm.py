@@ -11,11 +11,13 @@ and exclude_ingredients from the tool schema and the system prompt, so the two v
 import asyncio
 import copy
 import json
+import os
 import statistics
 import sys
 from pathlib import Path
 
 from agent_service import agent
+from agent_service.config import settings
 from agent_service.llm import LlmError
 from agent_service.main import get_llm
 from agent_service.tools import McpTools
@@ -24,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_pool import ROOT, hard_violation, sql  # noqa: E402
 
 RUNS = 3
+# Seconds between chats. Gemini's free tier answered 429 to 38 of 126 chats run back to back.
+PAUSE_SECONDS = float(os.getenv("LLM_EVAL_PAUSE_SECONDS", "0"))
 FILTERS = ("category", "brand", "exclude_ingredients")
 FILTER_LINES = [line for line in agent.SYSTEM_PROMPT.splitlines() if any(f in line for f in FILTERS)]
 
@@ -80,6 +84,7 @@ async def run(variant: str, questions: list[dict], judgments: dict, tools: McpTo
                    "error": error, **score(q, judgments[q["id"]], products)}
             rows.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
+            await asyncio.sleep(PAUSE_SECONDS)
     return rows
 
 
@@ -133,6 +138,9 @@ async def main() -> None:
             rows = await run(variant, questions, judgments, tools)
             result = {"variant": variant, "summary": summary(rows), "rows": rows}
             name = variant if not only else f"{variant}-{only[0]}-{only[-1]}"
+            # Keeps the catalog results (llm-filter.json and the like) from being overwritten.
+            if settings.search_backend != "catalog":
+                name = f"{settings.search_backend}-{name}"
             (ROOT / f".local/eval/llm-{name}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
             print(json.dumps({"variant": variant, **result["summary"]}, ensure_ascii=False), flush=True)
 
