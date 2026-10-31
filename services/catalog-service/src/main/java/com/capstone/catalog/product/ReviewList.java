@@ -24,9 +24,10 @@ public class ReviewList {
 
     private static final String COUNT = "SELECT count(*) FROM reviews WHERE " + MATCHING;
 
-    // The date a shopper in Korea saw on the review, not the UTC one.
+    // The date a shopper in Korea saw on the review, not the UTC one. Reviews collected before 10/31 keep Musinsa's
+    // lowercase "none" for a review without an option.
     private static final String PAGE = """
-            SELECT id, grade, content, skin_type, option_text, like_count,
+            SELECT id, grade, content, skin_type, NULLIF(option_text, 'none') AS option_text, like_count,
                    CAST(written_at AT TIME ZONE 'Asia/Seoul' AS date) AS written_on
             FROM reviews
             WHERE %s

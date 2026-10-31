@@ -43,7 +43,7 @@ class ReviewListControllerTest {
         review(11, 1, 5, 20, "dry", "50ml", "2026-08-31T20:00:00Z", LONG_CONTENT);
         review(12, 1, 3, 10, null, null, "2026-09-02T01:00:00Z", "향이 좀 강해요");
         review(13, 1, 5, 10, "oily", "50ml", "2026-09-02T01:00:00Z", "산뜻해요"); // same time as 12
-        review(14, 1, 1, 0, "dry", "100ml", "2026-08-01T00:00:00Z", "따가워요");
+        review(14, 1, 1, 0, "dry", "none", "2026-08-01T00:00:00Z", "따가워요"); // collected before 10/31
         review(31, 3, 5, 0, "dry", null, "2026-09-01T00:00:00Z", "다른 상품 리뷰");
     }
 
@@ -70,6 +70,14 @@ class ReviewListControllerTest {
                 .andExpect(jsonPath("$.reviews[0].optionText").value("50ml"))
                 .andExpect(jsonPath("$.reviews[0].likeCount").value(20))
                 .andExpect(jsonPath("$.reviews[0].writtenAt").value("2026-09-01"));
+    }
+
+    @Test
+    void 옵션이_없다는_뜻의_none은_null로_준다() throws Exception {
+        mockMvc.perform(get("/api/v1/products/1/reviews").param("skinType", "dry"))
+                .andExpect(jsonPath("$.reviews[*].reviewId").value(contains(11, 14)))
+                .andExpect(jsonPath("$.reviews[0].optionText").value("50ml"))
+                .andExpect(jsonPath("$.reviews[1].optionText").value(nullValue()));
     }
 
     @Test
