@@ -51,6 +51,9 @@ services:
     volumes:
       - opensearch-data:/usr/share/opensearch/data
     mem_limit: 5g
+    # Java runs as PID 1 here and never reaps the health check's curl, so each check left a zombie: about 50,000 after
+    # three days, when no container could start a process any more. The init process reaps them.
+    init: true
     healthcheck:
       test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
       interval: 5s
