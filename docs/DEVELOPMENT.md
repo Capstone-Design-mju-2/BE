@@ -174,6 +174,7 @@ make infra-reset CONFIRM=1
 | `/api/v1/chat` | agent-service |
 | `/api/v1/products...` | catalog-service |
 | `/api/v1/inventories...`, `/api/v1/orders...` | order-service |
+| 그 밖의 GET | FE 빌드(서버 `/srv/peaupick-fe`) |
 
 1. `deploy/.env.example`을 `deploy/.env`로 복사해 DB 비밀번호, LLM 키, 팀 로그인 해시를 채운다. 해시는 아래 명령으로 만들고 작은따옴표로 감싼다(해시에 `$`가 들어 있다).
 
@@ -204,3 +205,20 @@ curl -u team:<팀 비밀번호> 'http://<서버 주소>/api/v1/products?category
 ```
 
 HTTP라서 팀 비밀번호와 응답이 암호화되지 않는다. 최종 시연 전에 도메인과 HTTPS를 붙인다(ADR-123).
+
+### FE 빌드
+
+FE는 API와 같은 주소에서 Caddy가 정적 파일로 내준다(ADR-125). 파일은 FE 저장소의 배포 워크플로가 빌드해 서버 `/srv/peaupick-fe`에 복사하고, Caddy는 이 폴더를 읽기 전용으로 붙인다. 워크플로가 쓰는 키는 `fe-deploy` 계정으로 이 폴더에 파일을 쓰는 것만 된다(셸 접속, 읽기, 폴더 밖 쓰기는 거부). 올라간 커밋은 `/version.txt`로 확인한다.
+
+서버를 새로 만들면 compose를 띄우기 전에 한 번 준비한다. 키를 새로 만들었으면 FE 저장소 시크릿 `DEPLOY_SSH_KEY`도 바꾼다.
+
+```bash
+sudo adduser --disabled-password --gecos '' --shell /bin/sh fe-deploy
+sudo mkdir -p /srv/peaupick-fe /home/fe-deploy/.ssh
+sudo chown fe-deploy:fe-deploy /srv/peaupick-fe
+sudo chmod 755 /srv/peaupick-fe
+echo 'restrict,command="/usr/bin/rrsync -wo /srv/peaupick-fe" <fe-deploy 공개 키>' | sudo tee /home/fe-deploy/.ssh/authorized_keys >/dev/null
+sudo chown -R fe-deploy:fe-deploy /home/fe-deploy/.ssh
+sudo chmod 700 /home/fe-deploy/.ssh
+sudo chmod 600 /home/fe-deploy/.ssh/authorized_keys
+```
