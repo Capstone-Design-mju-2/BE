@@ -172,6 +172,26 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void skinType을_주면_상품은_그대로이고_근거_후보_안에서_그_피부_타입_리뷰를_먼저_고른다() throws Exception {
+        jdbcTemplate.update("UPDATE reviews SET skin_type = 'dry' WHERE id IN (201, 204, 102)");
+
+        // 204 is dry but does not mention q, so it stays out of product 2's evidence.
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("skinType", "dry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(2, 3, 1)))
+                .andExpect(jsonPath("$.products[0].evidence[*].reviewId").value(org.hamcrest.Matchers.contains(201, 203)))
+                .andExpect(jsonPath("$.products[0].evidence[*].skinType").value(org.hamcrest.Matchers.contains("dry", null)))
+                .andExpect(jsonPath("$.products[2].evidence[*].reviewId").value(org.hamcrest.Matchers.contains(102, 101)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉"))
+                .andExpect(jsonPath("$.products[*].productId").value(org.hamcrest.Matchers.contains(2, 3, 1)))
+                .andExpect(jsonPath("$.products[0].evidence[*].reviewId").value(org.hamcrest.Matchers.contains(203, 202)))
+                .andExpect(jsonPath("$.products[2].evidence[*].reviewId").value(org.hamcrest.Matchers.contains(101, 102)));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("skinType", "normal"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SEARCH_REQUEST"));
+    }
+
+    @Test
     void 퍼센트와_밑줄은_와일드카드가_아니라_글자로_찾는다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "%"))
                 .andExpect(jsonPath("$.products").isEmpty());

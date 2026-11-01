@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_service.tools import ToolError, _Session
+from agent_service.tools import McpTools, ToolError, _Session
 
 HEALTH = {"status": "UP", "service": "search-mcp"}
 LOGGER = "agent_service.tools"
@@ -127,6 +127,18 @@ class ReopenHangTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, HEALTH)
         await self.session.stop()
         self.assertEqual(children("sleep 3600"), [])
+
+
+class DefinitionsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_요청이_채우는_인자는_LLM에게_보여_주지_않는다(self):
+        async with McpTools() as tools:
+            served = next(t.input_schema for t in tools._search.tools if t.name == "search_products")
+            shown = next(d["function"]["parameters"] for d in tools.definitions
+                         if d["function"]["name"] == "search_products")
+
+        self.assertIn("skin_type", served["properties"])
+        self.assertNotIn("skin_type", shown["properties"])
+        self.assertEqual(set(served["properties"]) - {"skin_type"}, set(shown["properties"]))
 
 
 class StartTest(unittest.IsolatedAsyncioTestCase):
