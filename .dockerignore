@@ -1,0 +1,11 @@
+.git
+.gradle
+.idea
+.venv
+.local
+**/.env
+**/.env.*
+**/build
+**/bin
+**/__pycache__
+**/node_modules
