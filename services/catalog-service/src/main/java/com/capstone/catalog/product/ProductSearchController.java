@@ -32,11 +32,13 @@ public class ProductSearchController {
                                  @RequestParam(required = false) @Pattern(regexp = "\\d{6}") String category,
                                  @RequestParam(required = false) String brand,
                                  @RequestParam(required = false) List<String> excludeIngredient,
+                                 @RequestParam(required = false)
+                                 @Pattern(regexp = "dry|oily|combination|sensitive") String skinType,
                                  @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
         var excluded = excludeIngredient == null ? List.<String>of()
                 : excludeIngredient.stream().filter(n -> !n.isBlank()).map(String::strip).toList();
         return new SearchResponse(productSearch.search(q.strip(), maxPrice, category, blankToNull(brand), excluded,
-                limit));
+                skinType, limit));
     }
 
     private static String blankToNull(String value) {
@@ -47,7 +49,8 @@ public class ProductSearchController {
             MethodArgumentTypeMismatchException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse invalidRequest() {
-        return new ErrorResponse("INVALID_SEARCH_REQUEST", "q는 필수이고 limit은 1~20, maxPrice는 0 이상, category는 6자리 코드여야 합니다.");
+        return new ErrorResponse("INVALID_SEARCH_REQUEST", "q는 필수이고 limit은 1~20, maxPrice는 0 이상, category는 6자리 코드, "
+                + "skinType은 dry·oily·combination·sensitive여야 합니다.");
     }
 
     public record SearchResponse(List<Product> products) {}

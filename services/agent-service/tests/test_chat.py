@@ -35,9 +35,11 @@ class FakeTools:
     def __init__(self, search, inventory):
         self.search, self.inventory = search, inventory
         self.calls = []
+        self.skin_types = []
 
-    async def search_products(self, q, max_price, limit):
+    async def search_products(self, q, max_price, limit, skin_type=None):
         self.calls.append(("search_products", q, max_price, limit))
+        self.skin_types.append(skin_type)
         if self.search is None:
             raise ToolError("search_products could not be called")
         return self.search
@@ -52,7 +54,8 @@ class FakeTools:
 
     async def call(self, name, arguments):
         if name == "search_products":
-            return await self.search_products(arguments["q"], arguments.get("max_price"), arguments.get("limit", 5))
+            return await self.search_products(arguments["q"], arguments.get("max_price"), arguments.get("limit", 5),
+                                              arguments.get("skin_type"))
         if name == "check_inventory":
             return await self.check_inventory(arguments["product_ids"])
         raise ToolError(f"{name} is not a tool")
@@ -171,6 +174,25 @@ class ChatTest(unittest.TestCase):
         self.assertEqual(self.chat("토너 99999999999원 이하").status_code, 200)
         self.assertEqual(tools.calls[0], ("search_products", "토너", None, 5))
 
+    def test_skinType을_검색에_넘기고_null은_없는_것으로_본다(self):
+        tools = serve(SEARCH, INVENTORY)
+
+        for skin_type in ("dry", None):
+            response = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": skin_type})
+            self.assertEqual(response.status_code, 200)
+        self.assertEqual(tools.skin_types, ["dry", None])
+
+    def test_skinType이_네_값_밖이면_400과_오류_본문을_반환한다(self):
+        tools = serve(SEARCH, INVENTORY)
+
+        for value in ("normal", "DRY", ""):
+            with self.subTest(value):
+                response = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": value})
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["code"], "INVALID_CHAT_REQUEST")
+        self.assertEqual(tools.calls, [])
+
 
 class LlmChatTest(unittest.TestCase):
     def setUp(self):
@@ -214,6 +236,17 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual({p["inventory"]["status"] for p in body["products"]}, {"UNKNOWN"})
         self.assertEqual([p["reason"] for p in body["products"]], [None, None, None])
         self.assertEqual([call[0] for call in tools.calls], ["search_products"])
+
+    def test_skinType은_요청_값만_검색에_넘어가고_LLM이_넣은_값은_버린다(self):
+        for label, request, expected in (("요청에 있음", {"skinType": "dry"}, "dry"), ("요청에 없음", {}, None)):
+            with self.subTest(label):
+                tools = serve(SEARCH, INVENTORY, FakeLlm(
+                    tool_call("search_products", {"q": "수분크림", "skin_type": "oily"}),
+                    final("찾았어요.", {})))
+                self.client.post("/api/v1/chat", json={"message": MESSAGE, **request})
+
+                self.assertEqual(tools.skin_types, [expected])
+                self.assertEqual(self.traces()[-1]["skinType"], expected)
 
     def test_검색_결과에_없는_상품의_reason은_버린다(self):
         serve(SEARCH, INVENTORY, FakeLlm(

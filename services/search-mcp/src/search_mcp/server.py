@@ -35,6 +35,7 @@ INGREDIENT_NAMES = {
 Ingredient = Literal["향료", "알코올", "미네랄오일"]
 Category = Literal["스킨케어", "선케어", "클렌징/필링", "프레그런스", "헤어케어", "바디케어", "쉐이빙/제모", "뷰티 디바이스/소품",
                    "미용소품", "헬스/푸드", "마스크팩", "베이스메이크업", "립메이크업", "아이메이크업", "네일"]
+SkinType = Literal["dry", "oily", "combination", "sensitive"]
 
 
 def _embedder() -> Callable[[str], list[float]]:
@@ -73,7 +74,7 @@ def health() -> dict[str, str]:
 async def search_products(q: str, max_price: int | None = None, category: Category | None = None,
                           brand: str | None = None,
                           exclude_ingredients: list[Ingredient] | Ingredient | None = None,
-                          limit: int = 5) -> dict[str, Any]:
+                          limit: int = 5, skin_type: SkinType | None = None) -> dict[str, Any]:
     """Search products by keyword in product names and review texts.
 
     max_price keeps only products priced at or below it (KRW). limit is 1 to 20.
@@ -91,6 +92,9 @@ async def search_products(q: str, max_price: int | None = None, category: Catego
     excluded = excluded_names(exclude_ingredients)
     if excluded:
         params["excludeIngredient"] = excluded
+    # Left out of the docstring the LLM reads: the agent fills it from the chat request (ADR-120).
+    if skin_type is not None:
+        params["skinType"] = skin_type
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(f"{CATALOG_SERVICE_URL}/api/v1/products/search", params=params)
         response.raise_for_status()
@@ -142,7 +146,8 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     return {"products": group_by_product(reviews, limit)}
 
 
-# Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
+# Each backend exposes only the arguments it honours; product_types means nothing to the catalog search. The review
+# index has no skin type yet (ADR-120), so search_reviews takes no skin_type and the SDK drops the one the agent sends.
 server.tool(name="search_products")(search_reviews if SEARCH_BACKEND == "opensearch" else search_products)
 
 

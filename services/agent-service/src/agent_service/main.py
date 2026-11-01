@@ -1,6 +1,7 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,13 +32,15 @@ app = FastAPI(title="Capstone Agent Service", version="0.1.0", lifespan=lifespan
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+    skin_type: Literal["dry", "oily", "combination", "sensitive"] | None = Field(default=None, alias="skinType")
 
 
 @app.exception_handler(RequestValidationError)
 async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
     return JSONResponse(status_code=400,
                         content={"code": "INVALID_CHAT_REQUEST",
-                                 "message": f"message는 1자 이상 {MAX_MESSAGE_LENGTH}자 이하여야 합니다."})
+                                 "message": f"message는 1자 이상 {MAX_MESSAGE_LENGTH}자 이하, "
+                                            "skinType은 dry·oily·combination·sensitive여야 합니다."})
 
 
 def get_tools(request: Request) -> McpTools:
@@ -55,23 +58,24 @@ async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: 
     try:
         if llm is not None:
             try:
-                answer, products, inventories, reasons = await run_agent(request.message, llm, tools)
+                answer, products, inventories, reasons = await run_agent(request.message, llm, tools,
+                                                                         request.skin_type)
                 return {"answer": answer, "products": cards(products, inventories, reasons)}
             except LlmError as error:
                 logger.warning("LLM could not answer, falling back to the 1B rules (ADR-92): %r", error)
-        return await _rule_chat(request.message, tools)
+        return await _rule_chat(request.message, tools, request.skin_type)
     except ToolError:
         return JSONResponse(status_code=502,
                             content={"code": "PRODUCT_SEARCH_FAILED", "message": "상품 검색에 실패했습니다."})
 
 
-async def _rule_chat(message: str, tools: McpTools) -> dict:
+async def _rule_chat(message: str, tools: McpTools, skin_type: str | None) -> dict:
     """Stage 1B: rule-based arguments, fixed tool order, template answer, no reason."""
     q, max_price = extract(message)
     if q is None:
         return {"answer": NOT_FOUND_ANSWER, "products": []}
 
-    products = (await tools.search_products(q, max_price, SEARCH_LIMIT))["products"]
+    products = (await tools.search_products(q, max_price, SEARCH_LIMIT, skin_type))["products"]
     inventories = await _check_inventories(tools, [p["productId"] for p in products])
     found = cards(products, inventories, {})
     answer = f"조건에 맞는 상품 {len(found)}개를 찾았습니다." if found else NOT_FOUND_ANSWER

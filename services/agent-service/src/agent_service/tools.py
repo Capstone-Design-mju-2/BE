@@ -17,6 +17,8 @@ RECONNECT_WAIT_SECONDS = 10
 CALL_TIMEOUT_SECONDS = 35  # must stay above the tools' own 30 s HTTP timeout, or a slow but healthy server is restarted
 BACKOFF_START_SECONDS = 0.2
 BACKOFF_MAX_SECONDS = 5.0
+# Tool arguments the agent fills from the chat request, so the LLM is never shown them (ADR-120).
+REQUEST_ARGUMENTS = {"skin_type"}
 
 
 class ToolError(Exception):
@@ -128,7 +130,8 @@ class McpTools:
         self._by_name = {tool.name: session for session, tool in tools}
         self.definitions = [
             {"type": "function",
-             "function": {"name": tool.name, "description": tool.description or "", "parameters": tool.input_schema}}
+             "function": {"name": tool.name, "description": tool.description or "",
+                          "parameters": _without_request_arguments(tool.input_schema)}}
             for _, tool in tools
         ]
         return self
@@ -139,10 +142,13 @@ class McpTools:
     async def _stop(self) -> None:
         await asyncio.gather(self._search.stop(), self._inventory.stop())
 
-    async def search_products(self, q: str, max_price: int | None, limit: int) -> dict[str, Any]:
+    async def search_products(self, q: str, max_price: int | None, limit: int,
+                              skin_type: str | None = None) -> dict[str, Any]:
         arguments: dict[str, Any] = {"q": q, "limit": limit}
         if max_price is not None:
             arguments["max_price"] = max_price
+        if skin_type is not None:
+            arguments["skin_type"] = skin_type
         return await self._search.call("search_products", arguments)
 
     async def check_inventory(self, product_ids: list[int]) -> dict[str, Any]:
@@ -153,3 +159,8 @@ class McpTools:
         if session is None:
             raise ToolError(f"{name} is not a tool")
         return await session.call(name, arguments)
+
+
+def _without_request_arguments(schema: dict[str, Any]) -> dict[str, Any]:
+    properties = {name: spec for name, spec in schema.get("properties", {}).items() if name not in REQUEST_ARGUMENTS}
+    return {**schema, "properties": properties}

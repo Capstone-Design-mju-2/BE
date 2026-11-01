@@ -31,7 +31,7 @@ POST /api/v1/chat
 
 `message`는 1자 이상 500자 이하다. 벗어나거나 없으면 400과 `{ "code": "INVALID_CHAT_REQUEST", "message": "..." }`를 반환한다.
 
-`skinType`은 선택이다(아직 구현 전이다. 11주차, FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르지는 않는다. 다른 값이면 400 `INVALID_CHAT_REQUEST`다.
+`skinType`은 선택이다(FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르거나 순서를 바꾸지는 않는다. `null`은 주지 않은 것과 같고, 다른 값이면 400 `INVALID_CHAT_REQUEST`다. LLM이 정하지 않고 agent가 요청 값을 그대로 검색에 넘긴다. 검색 경로가 OpenSearch(`SEARCH_BACKEND=opensearch`)이면 인덱스에 피부 타입이 없어 반영되지 않는다.
 
 ```json
 { "message": "끈적이지 않는 수분크림 추천해 줘", "skinType": "dry" }
@@ -50,8 +50,8 @@ POST /api/v1/chat
       "price": 25900,
       "reason": "건성 피부 사용자의 보습력 평가가 높고 끈적임 언급이 적습니다.",
       "evidence": [
-        { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요" },
-        { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요" }
+        { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
+        { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요", "skinType": null }
       ],
       "inventory": {
         "status": "IN_STOCK",
@@ -74,7 +74,7 @@ POST /api/v1/chat
 
 `reason`은 LLM이 `evidence`를 읽고 쓴다. `evidence` 없이 생성하지 않는다. 생성 문장과 원본 리뷰를 함께 남겨야 오작동률을 측정할 수 있다.
 
-`skinType`을 구현하면 `evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이다.
+`evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다. 검색 경로가 OpenSearch이면 이 필드가 없다.
 
 ## 2. Catalog API
 
@@ -89,6 +89,7 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 | `category` | X | 카테고리 코드 6자리 하나. 이 카테고리 상품만 반환 (예: `104007` 바디케어) |
 | `brand` | X | 브랜드 이름과 정확히 같은 상품만 반환 (예: `라운드랩`) |
 | `excludeIngredient` | X | 성분 이름. 여러 번 줄 수 있다. 이 성분이 든 상품과 성분 정보가 없는 상품을 뺀다 (예: `향료`) |
+| `skinType` | X | `dry`, `oily`, `combination`, `sensitive`. 주면 근거를 고를 때 그 피부 타입 작성자의 리뷰를 먼저 고른다. 상품은 거르거나 순서를 바꾸지 않는다 |
 | `limit` | X | 기본 5, 최대 20 |
 
 응답
@@ -102,8 +103,8 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
       "brand": "브랜드 A",
       "price": 25900,
       "evidence": [
-        { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요" },
-        { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요" }
+        { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
+        { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요", "skinType": null }
       ]
     }
   ]
@@ -111,9 +112,11 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 ```
 
 - `evidence`는 상품당 최대 2개다. `q`가 리뷰 본문에 걸린 리뷰를 별점 높은 순으로 고르고, 동점이면 최신순으로 고른다. `q`가 상품명에만 걸려 리뷰 본문에 걸린 리뷰가 없는 상품은 같은 정렬로 그 상품의 전체 리뷰에서 고른다. 리뷰가 하나도 없는 상품은 결과에서 뺀다. 이 정렬 규칙은 잠정값이며 검색 품질 측정 후 바꿀 수 있다.
+- `skinType`을 주면 위에서 고를 리뷰들(`q`가 걸린 리뷰, 없으면 전체 리뷰) 안에서 그 피부 타입 작성자의 리뷰를 먼저 고르고, 나머지는 같은 정렬을 따른다. `q`가 걸리지 않은 같은 피부 타입 리뷰를 `q`가 걸린 리뷰보다 앞에 두지는 않는다.
+- `evidence`의 `skinType`은 작성자가 고른 값이고, 고르지 않았으면 `null`이다.
 - `excerpt`는 80자를 넘기지 않는다. LLM 입력 토큰은 이 값에 비례한다.
 - `excerpt`는 `q`가 든 문장의 처음부터 보여준다. 문장은 줄바꿈이나 띄어쓰기가 뒤따르는 `.` `!` `?`에서 나눈다. 문장 처음부터 `q`까지가 80자를 넘으면 `q` 앞쪽 단어 처음부터 `…`를 붙여 보여준다.
-- 피부 타입으로 상품을 거르지는 않는다. "건성"은 리뷰 본문 키워드로 걸린다. 채팅의 `skinType`(11주차)은 근거 리뷰를 고르는 순서에만 쓴다.
+- 피부 타입으로 상품을 거르지는 않는다. "건성"은 리뷰 본문 키워드로 걸린다. 채팅의 `skinType`은 이 API의 `skinType`으로 넘어가 근거 리뷰를 고르는 순서에만 쓴다.
 - `category`와 `brand`는 질문에서 LLM이 도구 인자로 채운다.
 - `excludeIngredient`는 성분표의 성분 이름과 정확히 같아야 한다. LLM은 MCP 도구에서 향료·알코올·미네랄오일 중에 고르고, search-mcp가 실제 성분 이름(알코올이면 에탄올·변성알코올·알코올·아이소프로필알코올)으로 바꿔 보낸다.
 
@@ -373,9 +376,11 @@ Catalog API (catalog-service)
 - `limit`보다 많은 상품을 반환하지 않는다.
 - 카테고리별 상품 목록을 같은 정렬로 0쪽과 1쪽 받으면 겹치는 상품이 없다.
 - 리뷰 조회에 `skinType`을 주면 그 피부 타입 작성자의 리뷰만 돌아오고, 없는 상품은 404다.
+- 검색에 `skinType`을 주면 상품 목록과 순서는 그대로이고, 상품마다 `q`가 걸린 리뷰 중 그 피부 타입 작성자의 리뷰가 근거 앞에 온다.
 
 Agent API (agent-service)
 
 - catalog와 order가 모두 정상일 때 상품 카드에 `evidence`와 `inventory`가 채워진다.
 - order-service를 내린 뒤 같은 질문을 하면 카드가 그대로 나오고 `inventory.status`가 전부 `UNKNOWN`이다.
 - catalog-service를 내린 뒤 같은 질문을 하면 오류 본문을 반환한다.
+- `skinType`을 주면 LLM이 무엇을 넣든 그 값이 검색에 넘어가고, 네 값 밖이면 400 `INVALID_CHAT_REQUEST`다.
