@@ -164,3 +164,43 @@ make infra-reset CONFIRM=1
 - 두 번째 구현이 생길 때 인터페이스를 추출한다.
 - 새 기술을 추가하기 전에 기준선과 실패 재현 방법을 먼저 만든다.
 - RDB는 PostgreSQL로 확정했다(ADR-124).
+
+## 9. 서버 배포 (시연 경로)
+
+시연 경로(catalog·order·agent와 DB 두 개)를 서버 한 대에 Docker Compose로 올린다(ADR-123). 서버에는 Docker만 있으면 된다. 포트는 Caddy만 열고, Caddy가 경로별로 나눠 넘기며 팀 계정으로 막는다. `/internal/*`(적재·가격 변경 API)와 actuator는 밖에서 404다.
+
+| 경로 | 서비스 |
+|---|---|
+| `/api/v1/chat` | agent-service |
+| `/api/v1/products...` | catalog-service |
+| `/api/v1/inventories...`, `/api/v1/orders...` | order-service |
+
+1. `deploy/.env.example`을 `deploy/.env`로 복사해 DB 비밀번호, LLM 키, 팀 로그인 해시를 채운다. 해시는 아래 명령으로 만들고 작은따옴표로 감싼다(해시에 `$`가 들어 있다).
+
+```bash
+docker run --rm caddy:2.10.2-alpine caddy hash-password --plaintext '<팀 비밀번호>'
+```
+
+2. 로컬 DB를 덤프해 서버로 옮긴다.
+
+```bash
+docker exec capstone-be-catalog-db-1 pg_dump -U catalog -d catalog -Fc > catalog.dump
+docker exec capstone-be-order-db-1 pg_dump -U orders -d orders -Fc > orders.dump
+```
+
+3. 서버에서 DB만 먼저 띄워 덤프를 복원한 뒤 나머지를 띄운다. 서비스가 먼저 뜨면 빈 DB에 마이그레이션을 적용해서 복원과 부딪힌다.
+
+```bash
+docker compose -f deploy/compose.yaml up -d --wait catalog-db order-db
+docker compose -f deploy/compose.yaml exec -T catalog-db pg_restore -U catalog -d catalog --no-owner < catalog.dump
+docker compose -f deploy/compose.yaml exec -T order-db pg_restore -U orders -d orders --no-owner < orders.dump
+docker compose -f deploy/compose.yaml up -d --build
+```
+
+4. 확인한다. 팀 계정 없이 부르면 401이다.
+
+```bash
+curl -u team:<팀 비밀번호> 'http://<서버 주소>/api/v1/products?category=104001&size=1'
+```
+
+HTTP라서 팀 비밀번호와 응답이 암호화되지 않는다. 최종 시연 전에 도메인과 HTTPS를 붙인다(ADR-123).
