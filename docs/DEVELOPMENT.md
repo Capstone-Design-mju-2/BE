@@ -163,4 +163,4 @@ make infra-reset CONFIRM=1
 - 다른 서비스의 DB를 직접 조회하지 않는다.
 - 두 번째 구현이 생길 때 인터페이스를 추출한다.
 - 새 기술을 추가하기 전에 기준선과 실패 재현 방법을 먼저 만든다.
-- 현재 PostgreSQL 선택은 로컬 기본값이며 최종 RDB 결정은 ADR로 확정한다.
+- RDB는 PostgreSQL로 확정했다(ADR-124).
