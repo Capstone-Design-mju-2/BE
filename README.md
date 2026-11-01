@@ -16,7 +16,7 @@ Stage 1B까지 구현했다. agent-service가 `search-mcp`와 `inventory-mcp`를
 - search-mcp / inventory-mcp
 - Docker Compose
 
-PostgreSQL은 RDB 선택 ADR 전까지 사용하는 교체 가능한 로컬 기본값이다.
+RDB는 PostgreSQL을 쓴다(ADR-124).
 
 ## 시작하기
 
