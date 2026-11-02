@@ -91,6 +91,7 @@ services:
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/peaupick-fe:/srv/fe:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
