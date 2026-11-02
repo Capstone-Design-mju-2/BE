@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -113,9 +114,12 @@ class _Session:
 
 class McpTools:
     def __init__(self) -> None:
+        # A child gets only the environment given here, so the model cache settings (HF_HOME, HF_HUB_OFFLINE in the
+        # server image) are passed on explicitly.
         self._search = _Session("search-mcp", {"CATALOG_SERVICE_URL": settings.catalog_service_url,
                                                "SEARCH_BACKEND": settings.search_backend,
-                                               "OPENSEARCH_URL": settings.opensearch_url})
+                                               "OPENSEARCH_URL": settings.opensearch_url,
+                                               **{k: v for k, v in os.environ.items() if k.startswith("HF_")}})
         self._inventory = _Session("inventory-mcp", {"ORDER_SERVICE_URL": settings.order_service_url})
 
     async def __aenter__(self) -> "McpTools":
