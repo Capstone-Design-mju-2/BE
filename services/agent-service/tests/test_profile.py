@@ -51,6 +51,12 @@ class ProfileTest(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()["code"], "PROFILE_ANALYSIS_UNAVAILABLE")
 
+    def test_AI_답변에만_나온_제품은_적합_제품으로_받지_않는다(self):
+        app.dependency_overrides[get_llm] = lambda: FakeLlm(
+            '{"observations":[],"matchedProducts":[{"name":"제품 B","sourceIds":["c1"]}],"matchedIngredients":[]}')
+        response = self.post()
+        self.assertEqual(response.status_code, 503)
+
     def test_키가_없으면_503이다(self):
         app.dependency_overrides[get_llm] = lambda: None
         self.assertEqual(self.post().status_code, 503)

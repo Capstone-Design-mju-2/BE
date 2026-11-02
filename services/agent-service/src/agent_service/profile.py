@@ -48,8 +48,10 @@ matchedProducts, matchedIngredients는 사용자 질문이나 메모에 실제 �
 
 async def analyze_profile(request: ProfileRequest, llm: Llm) -> ProfileInsights:
     evidence = {item.id for item in request.conversations}
+    user_text = {item.id: item.question.casefold() for item in request.conversations}
     if request.skin_type or request.skin_notes.strip():
         evidence.add("profile")
+        user_text["profile"] = request.skin_notes.casefold()
     if not evidence:
         return ProfileInsights(observations=[], matchedProducts=[], matchedIngredients=[])
 
@@ -70,6 +72,10 @@ async def analyze_profile(request: ProfileRequest, llm: Llm) -> ProfileInsights:
         items = result.observations + result.matched_products + result.matched_ingredients
         if any(not set(item.source_ids).issubset(evidence) for item in items):
             raise ValueError("unknown evidence id")
+        matched = result.matched_products + result.matched_ingredients
+        if any(not any(item.name.casefold() in user_text[source_id] for source_id in item.source_ids)
+               for item in matched):
+            raise ValueError("matched item not named by the user")
         return result
     except (KeyError, TypeError, ValueError) as error:
         raise LlmError("profile response was invalid") from error
