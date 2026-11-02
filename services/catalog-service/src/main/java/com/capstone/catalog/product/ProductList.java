@@ -20,7 +20,7 @@ public class ProductList {
     private static final String COUNT = "SELECT count(*) FROM products WHERE category_code = :category";
 
     private static final String PAGE = """
-            SELECT id, name, brand_name, price, review_count, review_score
+            SELECT id, name, brand_name, price, review_count, review_score, image_url
             FROM products
             WHERE category_code = :category
             ORDER BY %s
@@ -45,11 +45,13 @@ public class ProductList {
         }
         var products = jdbcTemplate.query(PAGE.formatted(ORDER.get(sort)), params, (rs, row) -> new Product(
                 rs.getLong("id"), rs.getString("name"), rs.getString("brand_name"), rs.getInt("price"),
-                rs.getInt("review_count"), rs.getInt("review_score")));
+                rs.getInt("review_count"), rs.getInt("review_score"), rs.getString("image_url"),
+                Thumbnails.small(rs.getString("image_url"))));
         return new Page(total, products);
     }
 
     public record Page(long total, List<Product> products) {}
 
-    public record Product(long productId, String name, String brand, int price, int reviewCount, int reviewScore) {}
+    public record Product(long productId, String name, String brand, int price, int reviewCount, int reviewScore,
+                          String imageUrl, String thumbnailUrl) {}
 }

@@ -17,6 +17,7 @@ MAX_ROUNDS = 5
 SEARCH_LIMIT = 5
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
+IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
 
 # The catalog matches q as one substring of names and reviews, so a multi-word q finds nothing.
 KEYWORD_QUERY = """- search_products로 상품을 찾는다. q에는 띄어쓰기 없는 한 단어를 넣고, 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
@@ -99,7 +100,7 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any],
             elif name == "check_inventory" and "error" not in result:
                 inventories.update(inventory_by_id(result))
             messages.append({"role": "tool", "tool_call_id": call_id,
-                             "content": json.dumps(result, ensure_ascii=False)})
+                             "content": json.dumps(_without_images(result), ensure_ascii=False)})
     else:
         raise LlmError(f"no final answer after {MAX_ROUNDS} rounds")
     if products is None and search_failed:
@@ -131,6 +132,14 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
     except ToolError as error:
         entry["error"] = str(error)
         return {"error": entry["error"]}
+
+
+def _without_images(result: dict[str, Any]) -> dict[str, Any]:
+    """Image addresses are for the cards; on every search they would only cost the LLM tokens (ADR-127)."""
+    if "products" not in result:
+        return result
+    return {**result, "products": [{k: v for k, v in p.items() if k not in IMAGE_FIELDS}
+                                   for p in result["products"]]}
 
 
 def final_answer(content: Any) -> tuple[str, dict[int, str]]:

@@ -192,6 +192,21 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void 썸네일이_있으면_주소를_주고_없으면_null이다() throws Exception {
+        String url = "https://image.msscdn.net/images/goods_img/20260930/2000/2000_1_500.jpg";
+        jdbcTemplate.update("UPDATE products SET image_url = ? WHERE id = 2", url);
+
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉"))
+                .andExpect(jsonPath("$.products[0].productId").value(2))
+                .andExpect(jsonPath("$.products[0].imageUrl").value(url))
+                .andExpect(jsonPath("$.products[0].thumbnailUrl").value(url.replace("_500.jpg", "_125.jpg")))
+                .andExpect(jsonPath("$.products[1].imageUrl").value(org.hamcrest.Matchers.nullValue()));
+
+        assertThat(Thumbnails.small("https://image.msscdn.net/a/1_2_500.png")).isEqualTo("https://image.msscdn.net/a/1_2_125.png");
+        assertThat(Thumbnails.small("https://image.msscdn.net/a_500x/1.jpg")).isEqualTo("https://image.msscdn.net/a_500x/1.jpg");
+    }
+
+    @Test
     void 퍼센트와_밑줄은_와일드카드가_아니라_글자로_찾는다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "%"))
                 .andExpect(jsonPath("$.products").isEmpty());

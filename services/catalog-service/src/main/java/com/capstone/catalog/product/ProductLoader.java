@@ -94,6 +94,11 @@ public class ProductLoader {
         return true;
     }
 
+    /** Returns false when no product has this external id. */
+    public boolean loadImage(long externalId, String imageUrl) {
+        return jdbcTemplate.update("UPDATE products SET image_url = ? WHERE external_id = ?", imageUrl, externalId) > 0;
+    }
+
     private static List<Object[]> surveyAnswers(long productId, List<Review> reviews) {
         var rows = new ArrayList<Object[]>();
         for (var review : reviews) {

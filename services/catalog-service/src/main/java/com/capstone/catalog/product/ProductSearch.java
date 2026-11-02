@@ -28,7 +28,7 @@ public class ProductSearch {
                 WHERE r.content ILIKE :pattern
                 GROUP BY r.product_id
             ), candidates AS (
-                SELECT p.id, p.name, p.brand_name, p.price, p.review_count, coalesce(h.hits, 0) AS hits
+                SELECT p.id, p.name, p.brand_name, p.price, p.image_url, p.review_count, coalesce(h.hits, 0) AS hits
                 FROM products p
                 LEFT JOIN hits h ON h.product_id = p.id
                 WHERE (CAST(:maxPrice AS integer) IS NULL OR p.price <= :maxPrice)
@@ -43,7 +43,7 @@ public class ProductSearch {
                 ORDER BY hits DESC, p.review_count DESC, p.id
                 LIMIT :limit
             )
-            SELECT c.id, c.name, c.brand_name, c.price, e.review_id, e.grade, e.content, e.skin_type
+            SELECT c.id, c.name, c.brand_name, c.price, c.image_url, e.review_id, e.grade, e.content, e.skin_type
             FROM candidates c
             CROSS JOIN LATERAL (
                 SELECT r.id AS review_id, r.grade, r.content, r.written_at, r.skin_type,
@@ -82,7 +82,7 @@ public class ProductSearch {
             var product = products.get(id);
             if (product == null) {
                 product = new Product(id, rs.getString("name"), rs.getString("brand_name"), rs.getInt("price"),
-                        new ArrayList<>());
+                        rs.getString("image_url"), Thumbnails.small(rs.getString("image_url")), new ArrayList<>());
                 products.put(id, product);
             }
             product.evidence().add(new Evidence(rs.getLong("review_id"), rs.getInt("grade"),
@@ -128,7 +128,8 @@ public class ProductSearch {
         return q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
-    public record Product(long productId, String name, String brand, int price, List<Evidence> evidence) {}
+    public record Product(long productId, String name, String brand, int price, String imageUrl,
+                          String thumbnailUrl, List<Evidence> evidence) {}
 
     public record Evidence(long reviewId, int rating, String excerpt, String skinType) {}
 }
