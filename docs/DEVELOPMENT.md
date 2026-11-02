@@ -98,7 +98,7 @@ uv run python scripts/load_thumbnails.py .local/musinsa/thumbnails.jsonl  # cata
 
 ### 의미 검색 (OpenSearch)
 
-`SEARCH_BACKEND=opensearch`이면 search-mcp가 질문을 BGE-M3로 임베딩해 OpenSearch의 리뷰 벡터를 찾는다(ADR-101, ADR-102). 리뷰 100개를 가져와 상품별로 묶고, LLM이 상품 종류(`product_types`)를 주면 상품명에 그 말이 든 상품만 남긴다(ADR-115). 기본값 `catalog`는 지금까지처럼 catalog-service의 단어 검색을 쓴다. 모델과 torch는 search-mcp의 선택 의존성이라 따로 설치한다. `make bootstrap`처럼 `--inexact` 없이 `uv sync`를 하면 지워진다.
+`SEARCH_BACKEND=opensearch`이면 search-mcp가 질문을 BGE-M3로 임베딩해 OpenSearch의 리뷰 벡터를 찾는다(ADR-101, ADR-102). 리뷰 100개를 가져와 상품별로 묶고, LLM이 상품 종류(`product_types`)를 주면 상품명에 그 말이 든 상품만 남긴다(ADR-115). 상품은 가져온 리뷰가 많은 순으로 고르고, 수가 같으면 가장 가까운 리뷰가 앞선 상품부터 고른다(ADR-128). 기본값 `catalog`는 지금까지처럼 catalog-service의 단어 검색을 쓴다. 모델과 torch는 search-mcp의 선택 의존성이라 따로 설치한다. `make bootstrap`처럼 `--inexact` 없이 `uv sync`를 하면 지워진다.
 
 ```bash
 uv sync --locked --all-packages --all-extras

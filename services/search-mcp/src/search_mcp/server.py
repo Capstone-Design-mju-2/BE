@@ -1,5 +1,6 @@
 import json
 import os
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
@@ -171,26 +172,28 @@ def has_type(name: str, types: list[str]) -> bool:
 
 
 def group_by_product(reviews: list[dict], limit: int) -> list[dict]:
-    """Rank products by their closest review; each keeps its two closest reviews as evidence. Reviews come closest first.
+    """Rank products by how many of the fetched reviews are theirs, the closest review breaking ties, as the catalog
+    ranks by matching reviews (ADR-128). Each keeps its two closest reviews as evidence. Reviews come closest first.
 
     >>> reviews = [{"review_id": r, "product_id": p, "content": c, "grade": 5, "name": "N", "brand": "B", "price": 1}
-    ...            for r, p, c in [(1, 10, "a"), (2, 20, "b"), (3, 10, "c"), (4, 10, "d"), (5, 30, "e"), (6, 20, "f")]]
+    ...            for r, p, c in [(1, 10, "a"), (2, 20, "b"), (3, 20, "c"), (4, 30, "d"), (5, 20, "e"), (6, 30, "f")]]
     >>> [(p["productId"], [e["reviewId"] for e in p["evidence"]]) for p in group_by_product(reviews, 2)]
-    [(10, [1, 3]), (20, [2, 6])]
+    [(20, [2, 3]), (30, [4, 6])]
     """
     products: dict[int, dict] = {}
+    counts: Counter[int] = Counter()
     for review in reviews:
+        counts[review["product_id"]] += 1
         product = products.get(review["product_id"])
         if product is None:
-            if len(products) == limit:
-                continue
             product = products[review["product_id"]] = {
                 "productId": review["product_id"], "name": review["name"], "brand": review["brand"],
                 "price": review["price"], "evidence": []}
         if len(product["evidence"]) < 2:
             product["evidence"].append({"reviewId": review["review_id"], "rating": review["grade"],
                                         "excerpt": excerpt(review["content"])})
-    return list(products.values())
+    # sorted is stable, so products with equal counts keep the order of their closest review.
+    return sorted(products.values(), key=lambda p: -counts[p["productId"]])[:limit]
 
 
 def excerpt(content: str) -> str:
