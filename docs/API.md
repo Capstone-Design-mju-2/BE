@@ -109,6 +109,32 @@ POST /api/v1/chat
 - `excludeProductIds`가 숫자 배열이 아니거나 10개를 넘거나, `searchConditions`가 객체가 아니면 400 `INVALID_CHAT_REQUEST`다. 값을 바꿔 보내 검색 도구가 받지 않으면 502 `PRODUCT_SEARCH_FAILED`다.
 - `INSUFFICIENT_STOCK`(재고가 요청 수량보다 적음)과 그 밖의 주문 실패는 품절 대안을 요청하지 않는다.
 
+### 선택적 피부 정보 분석 API (마이페이지)
+
+`POST /api/v1/profile/insights`는 사용자가 분석 버튼을 누를 때만 호출한다. BE는 요청을 저장하지 않는다. 인증·계정별 상담 조회 API는 아직 없다. `conversations`는 최대 20건이며 항목은 `id`(80자 이하), `question`(1~500자), `answer`(1~2000자)다. `skinNotes`는 500자 이하다.
+
+```json
+{
+  "skinType": "dry",
+  "skinNotes": "겨울에 건조해요",
+  "conversations": [
+    { "id": "chat-1", "question": "A 크림이 잘 맞았는데 비슷한 제품 추천해 줘", "answer": "B 크림을 추천합니다." }
+  ]
+}
+```
+
+응답의 `sourceIds`는 요청의 대화 `id` 또는 직접 입력한 피부 타입·메모를 뜻하는 `profile`이다. AI가 생성한 관찰 문장과 상담에서 사용자가 직접 말한 적합 제품·성분을 구분한다. 추천받았다는 사실만으로 적합 제품·성분에 넣지 않는다.
+
+```json
+{
+  "observations": [{ "text": "겨울철 건조함을 언급했어요.", "sourceIds": ["profile"] }],
+  "matchedProducts": [{ "name": "A 크림", "sourceIds": ["chat-1"] }],
+  "matchedIngredients": []
+}
+```
+
+LLM 설정 키가 없거나 LLM 응답이 실패·형식 오류·없는 근거 ID를 포함하면 503 `PROFILE_ANALYSIS_UNAVAILABLE`이다. 요청 형식이 틀리면 400 `INVALID_PROFILE_REQUEST`다. 의료 진단용 응답이 아니다.
+
 ## 2. Catalog API
 
 ```text

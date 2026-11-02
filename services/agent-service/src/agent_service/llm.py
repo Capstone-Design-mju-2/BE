@@ -37,8 +37,11 @@ class Llm:
                 raise TimeoutError("no time left for another call")
             # httpx timeouts apply per read, so a server that keeps trickling bytes would never time out on its own.
             async with asyncio.timeout(limit), httpx.AsyncClient(timeout=limit) as client:
+                body = {"model": self.model, "messages": messages}
+                if tools:
+                    body["tools"] = tools
                 response = await client.post(self._url, headers=self._headers,
-                                             json={"model": self.model, "messages": messages, "tools": tools})
+                                             json=body)
                 response.raise_for_status()
                 body = response.json()
             return body["choices"][0]["message"], body.get("usage") or {}
