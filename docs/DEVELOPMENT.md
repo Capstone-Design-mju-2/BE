@@ -213,8 +213,10 @@ sudo apt-get install -y python3-numpy
 docker compose stop agent
 OPENSEARCH_MEM_LIMIT=5g docker compose up -d --wait opensearch
 OPENSEARCH_URL=http://127.0.0.1:9200 python3 ../scripts/index_reviews.py
-docker compose up -d --wait opensearch agent
+docker compose up -d --wait opensearch agent   # 세그먼트 합치기가 끝난 뒤
 ```
+
+서버(CPU 2개)에서는 색인이 끝나도 세그먼트 합치기가 한동안 이어진다. 11/03에는 색인이 18분 걸렸고, 끝난 직후 17.3GB였던 색인이 합치기가 끝나자 6.9GB가 됐다. 그동안 디스크가 10GB쯤 더 들고 메모리도 쓰므로, `curl -s localhost:9200/reviews/_stats/merge`의 `current`가 0이 된 뒤에 상한을 4GB로 되돌린다. agent는 모델을 읽느라 시작에 약 20초 걸린다(search-mcp 시작 제한 30초).
 
 5. 확인한다. 팀 계정 없이 부르면 401이다.
 
