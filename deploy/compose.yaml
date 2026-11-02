@@ -1,5 +1,6 @@
-# The demo path on one server (ADR-123): two PostgreSQL databases, the three services and Caddy in front.
-# Secrets come from deploy/.env (copy .env.example). Only Caddy publishes a port.
+# The demo path on one server (ADR-123): two PostgreSQL databases, the three services, OpenSearch for the review
+# search (ADR-130) and Caddy in front. Secrets come from deploy/.env (copy .env.example). Only Caddy publishes a port
+# to the outside; OpenSearch listens on the server's loopback for indexing.
 name: capstone-deploy
 
 services:
@@ -71,7 +72,8 @@ services:
       AGENT_SERVICE_HOST: 0.0.0.0
       CATALOG_SERVICE_URL: http://catalog:8081
       ORDER_SERVICE_URL: http://order:8082
-      SEARCH_BACKEND: catalog
+      SEARCH_BACKEND: ${SEARCH_BACKEND:-opensearch}
+      OPENSEARCH_URL: http://opensearch:9200
       LLM_BASE_URL: ${LLM_BASE_URL:?}
       LLM_MODEL: ${LLM_MODEL:?}
       LLM_API_KEY: ${LLM_API_KEY:?}
@@ -80,6 +82,30 @@ services:
     depends_on:
       - catalog
       - order
+      - opensearch
+    restart: unless-stopped
+
+  opensearch:
+    image: opensearchproject/opensearch:3.8.0
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+      knn.memory.circuit_breaker.limit: 75%
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    # Searching peaked at 3.1 GB locally. Indexing needs 5g: at 4g the kernel killed it (docs/DEVELOPMENT.md 9).
+    mem_limit: ${OPENSEARCH_MEM_LIMIT:-4g}
+    # Java runs as PID 1 and never reaps the health check's curl; the init process does.
+    init: true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
     restart: unless-stopped
 
   caddy:
@@ -106,5 +132,6 @@ volumes:
   catalog-db-data:
   order-db-data:
   agent-traces:
+  opensearch-data:
   caddy-data:
   caddy-config:

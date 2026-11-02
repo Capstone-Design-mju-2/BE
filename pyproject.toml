@@ -5,3 +5,13 @@ members = [
     "services/inventory-mcp",
     "services/indexer",
 ]
+
+# Linux takes torch from PyTorch's CPU-only index: the PyPI wheel pulls in 43 NVIDIA packages the server never uses
+# (ADR-130). macOS keeps the PyPI wheel, which has no CUDA.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]

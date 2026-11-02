@@ -171,7 +171,7 @@ make infra-reset CONFIRM=1
 
 ## 9. 서버 배포 (시연 경로)
 
-시연 경로(catalog·order·agent와 DB 두 개)를 서버 한 대에 Docker Compose로 올린다(ADR-123). 서버에는 Docker만 있으면 된다. 포트는 Caddy만 열고, Caddy가 경로별로 나눠 넘기며 팀 계정으로 막는다. `/internal/*`(적재·가격 변경 API)와 actuator는 밖에서 404다.
+시연 경로(catalog·order·agent와 DB 두 개)와 리뷰 검색용 OpenSearch를 서버 한 대에 Docker Compose로 올린다(ADR-123, ADR-130). OpenSearch와 질문 임베딩 모델(약 2.3GB)이 들어가도록 서버는 8GB(m7i-flex.large)다. 서버에는 Docker만 있으면 되고, 색인할 때만 numpy가 더 필요하다. 채팅은 OpenSearch로 찾는다. `deploy/.env`에 `SEARCH_BACKEND=catalog`를 넣고 agent를 다시 띄우면 DB 검색으로 돌아간다. 포트는 Caddy만 열고, Caddy가 경로별로 나눠 넘기며 팀 계정으로 막는다. `/internal/*`(적재·가격 변경 API)와 actuator는 밖에서 404다.
 
 | 경로 | 서비스 |
 |---|---|
@@ -204,7 +204,19 @@ docker compose -f deploy/compose.yaml exec -T order-db pg_restore -U orders -d o
 docker compose -f deploy/compose.yaml up -d --build
 ```
 
-4. 확인한다. 팀 계정 없이 부르면 401이다.
+4. OpenSearch 색인을 만든다. 맥에 저장해 둔 리뷰 벡터(`.local/embeddings/bge-m3`, 약 3.1GB)를 서버로 보내고 서버에서 `scripts/index_reviews.py`를 돌린다. 이 스크립트는 실행한 폴더의 `.local/embeddings`와 그 폴더의 compose로 catalog DB를 읽으므로 `deploy`에서 돌린다. 색인하는 동안 agent를 내리고 OpenSearch 상한을 5GB로 올린다. 4GB에서 색인하다 메모리 부족으로 죽은 적이 있다.
+
+```bash
+rsync -a .local/embeddings/bge-m3/ ubuntu@<서버>:capstone/deploy/.local/embeddings/bge-m3/   # 맥에서
+cd ~/capstone/deploy                                                                        # 이하 서버에서
+sudo apt-get install -y python3-numpy
+docker compose stop agent
+OPENSEARCH_MEM_LIMIT=5g docker compose up -d --wait opensearch
+OPENSEARCH_URL=http://127.0.0.1:9200 python3 ../scripts/index_reviews.py
+docker compose up -d --wait opensearch agent
+```
+
+5. 확인한다. 팀 계정 없이 부르면 401이다.
 
 ```bash
 curl -u team:<팀 비밀번호> 'https://<SITE_ADDRESS>/api/v1/products?category=104001&size=1'
