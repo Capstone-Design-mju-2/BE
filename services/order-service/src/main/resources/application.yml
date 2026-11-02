@@ -28,3 +28,10 @@ management:
       probes:
         enabled: true
       show-details: never
+
+order:
+  redisson:
+    # order.stock-strategy가 redisson일 때만 Redis에 연결한다.
+    address: "redis://127.0.0.1:${REDIS_PORT:6379}"
+    timeout-millis: 1000
+    wait-millis: 3000

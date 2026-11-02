@@ -20,6 +20,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import com.capstone.order.TestcontainersConfiguration;
 import com.capstone.order.inventory.Inventory;
@@ -32,6 +34,7 @@ class OversellReproductionTest {
 
     static final int INITIAL_STOCK = 1;
     static final int BUYERS = 5;
+    static final String REDIS_IMAGE = "redis:7.4.2-alpine";
 
     static class SwitchableStockDecreaser implements StockDecreaser {
         volatile StockDecreaser delegate;
@@ -94,6 +97,25 @@ class OversellReproductionTest {
         assertThat(outcomes).containsExactlyInAnyOrderEntriesOf(Map.of("SUCCESS", 1L, "OUT_OF_STOCK", 4L));
         assertThat(orderRepository.count()).isEqualTo(INITIAL_STOCK);
         assertThat(finalStock()).isZero();
+    }
+
+    @Test
+    void Redisson_락이면_1건만_성공하고_초과_판매가_없다() throws Exception {
+        try (GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse(REDIS_IMAGE))
+                .withExposedPorts(6379)) {
+            redis.start();
+            String address = "redis://" + redis.getHost() + ":" + redis.getMappedPort(6379);
+            try (RedissonLockStockDecreaser redisson = new RedissonLockStockDecreaser(inventoryRepository,
+                    RedissonLockStockDecreaser.connect(address, 1000), 5000, lineUp(new CyclicBarrier(BUYERS)))) {
+                decreaser.delegate = redisson;
+
+                Map<String, Long> outcomes = race("redisson");
+
+                assertThat(outcomes).containsExactlyInAnyOrderEntriesOf(Map.of("SUCCESS", 1L, "OUT_OF_STOCK", 4L));
+                assertThat(orderRepository.count()).isEqualTo(INITIAL_STOCK);
+                assertThat(finalStock()).isZero();
+            }
+        }
     }
 
     private Map<String, Long> race(String strategy) throws Exception {

@@ -35,6 +35,17 @@ services:
       retries: 10
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4.2-alpine
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   # Review vectors for semantic search (ADR-98, ADR-101). 800k reviews at 16-bit need about 1.64 GiB of native memory
   # outside the 1 GiB heap, and the node used 3.87 GiB once they were loaded: at 4 GiB the kernel killed it under 10
   # concurrent searches. The k-NN breaker's default 50% of what the heap leaves measured as too small for them.
