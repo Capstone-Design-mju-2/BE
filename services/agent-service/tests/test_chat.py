@@ -1,5 +1,6 @@
 """uv run --package agent-service python -m unittest discover -s services/agent-service/tests"""
 
+import asyncio
 import json
 import tempfile
 import unittest
@@ -34,9 +35,11 @@ class FakeTools:
     def __init__(self, search, inventory):
         self.search, self.inventory = search, inventory
         self.calls = []
+        self.skin_types = []
 
-    async def search_products(self, q, max_price, limit):
+    async def search_products(self, q, max_price, limit, skin_type=None):
         self.calls.append(("search_products", q, max_price, limit))
+        self.skin_types.append(skin_type)
         if self.search is None:
             raise ToolError("search_products could not be called")
         return self.search
@@ -51,7 +54,8 @@ class FakeTools:
 
     async def call(self, name, arguments):
         if name == "search_products":
-            return await self.search_products(arguments["q"], arguments.get("max_price"), arguments.get("limit", 5))
+            return await self.search_products(arguments["q"], arguments.get("max_price"), arguments.get("limit", 5),
+                                              arguments.get("skin_type"))
         if name == "check_inventory":
             return await self.check_inventory(arguments["product_ids"])
         raise ToolError(f"{name} is not a tool")
@@ -60,16 +64,34 @@ class FakeTools:
 class FakeLlm:
     """Plays back assistant messages in order; an exception in the script is raised instead."""
 
+    timeout = 60.0
+
     def __init__(self, *replies):
         self.replies = list(replies)
         self.requests = []
 
-    async def complete(self, messages, tools):
+    async def complete(self, messages, tools, timeout=None):
         self.requests.append(list(messages))
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
         return reply, {"total_tokens": 100}
+
+
+class SlowLlm(FakeLlm):
+    """Each call takes `delay` seconds and, like Llm, gives up when the time it is handed runs out."""
+
+    def __init__(self, delay, *replies):
+        super().__init__(*replies)
+        self.delay = delay
+
+    async def complete(self, messages, tools, timeout=None):
+        try:
+            async with asyncio.timeout(timeout):
+                await asyncio.sleep(self.delay)
+        except TimeoutError as error:
+            raise LlmError("timed out") from error
+        return await super().complete(messages, tools, timeout)
 
 
 def tool_call(name, arguments):
@@ -152,6 +174,25 @@ class ChatTest(unittest.TestCase):
         self.assertEqual(self.chat("토너 99999999999원 이하").status_code, 200)
         self.assertEqual(tools.calls[0], ("search_products", "토너", None, 5))
 
+    def test_skinType을_검색에_넘기고_null은_없는_것으로_본다(self):
+        tools = serve(SEARCH, INVENTORY)
+
+        for skin_type in ("dry", None):
+            response = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": skin_type})
+            self.assertEqual(response.status_code, 200)
+        self.assertEqual(tools.skin_types, ["dry", None])
+
+    def test_skinType이_네_값_밖이면_400과_오류_본문을_반환한다(self):
+        tools = serve(SEARCH, INVENTORY)
+
+        for value in ("normal", "DRY", ""):
+            with self.subTest(value):
+                response = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": value})
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["code"], "INVALID_CHAT_REQUEST")
+        self.assertEqual(tools.calls, [])
+
 
 class LlmChatTest(unittest.TestCase):
     def setUp(self):
@@ -196,6 +237,28 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual([p["reason"] for p in body["products"]], [None, None, None])
         self.assertEqual([call[0] for call in tools.calls], ["search_products"])
 
+    def test_skinType은_요청_값만_검색에_넘어가고_LLM이_넣은_값은_버린다(self):
+        for label, request, expected in (("요청에 있음", {"skinType": "dry"}, "dry"), ("요청에 없음", {}, None)):
+            with self.subTest(label):
+                tools = serve(SEARCH, INVENTORY, FakeLlm(
+                    tool_call("search_products", {"q": "수분크림", "skin_type": "oily"}),
+                    final("찾았어요.", {})))
+                self.client.post("/api/v1/chat", json={"message": MESSAGE, **request})
+
+                self.assertEqual(tools.skin_types, [expected])
+                self.assertEqual(self.traces()[-1]["skinType"], expected)
+
+    def test_사진_주소는_카드에만_싣고_LLM에게는_넘기지_않는다(self):
+        url = "https://image.msscdn.net/images/goods_img/20260930/1/1_1_500.jpg"
+        small = url.replace("_500.", "_125.")
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        serve({"products": [{**SEARCH["products"][0], "imageUrl": url, "thumbnailUrl": small}]}, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual((body["products"][0]["imageUrl"], body["products"][0]["thumbnailUrl"]), (url, small))
+        self.assertEqual(llm.requests[-1][-1]["role"], "tool")
+        self.assertNotIn("msscdn", llm.requests[-1][-1]["content"])
+
     def test_검색_결과에_없는_상품의_reason은_버린다(self):
         serve(SEARCH, INVENTORY, FakeLlm(
             tool_call("search_products", {"q": "수분크림"}),
@@ -239,6 +302,29 @@ class LlmChatTest(unittest.TestCase):
                 self.assertEqual(tools.calls[-2:], [("search_products", "수분크림", 30000, 5),
                                                     ("check_inventory", [1, 2, 3])])
                 self.assertIn("error", self.traces()[-1])
+
+    def test_LLM_시간_제한은_호출마다가_아니라_질문_하나_전체에_걸린다(self):
+        # Each 0.2s call fits the 0.5s limit on its own; the third one does not fit what is left.
+        llm = SlowLlm(0.2, tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+                      final("찾았어요.", {}))
+        llm.timeout = 0.5
+        serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertIn("error", self.traces()[-1])
+        self.assertEqual(len(llm.requests), 2)
+
+    def test_마감이_지난_뒤에는_도구를_부르지_않고_1B_규칙으로_답한다(self):
+        # FakeLlm answers whatever time it is handed, as if its reply came back just at the deadline.
+        llm = FakeLlm(tool_call("search_products", {"q": "보습크림"}), final("찾았어요.", {}))
+        llm.timeout = 0
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertEqual(tools.calls, [("search_products", "수분크림", 30000, 5), ("check_inventory", [1, 2, 3])])
 
     def test_LLM_경로에서_catalog가_내려가면_1B도_실패해_오류_본문을_반환한다(self):
         tools = serve(None, INVENTORY, FakeLlm(tool_call("search_products", {"q": "수분크림"}),

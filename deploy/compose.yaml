@@ -1,0 +1,110 @@
+# The demo path on one server (ADR-123): two PostgreSQL databases, the three services and Caddy in front.
+# Secrets come from deploy/.env (copy .env.example). Only Caddy publishes a port.
+name: capstone-deploy
+
+services:
+  catalog-db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD:?}
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "catalog", "-d", "catalog"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  order-db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD:?}
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "orders", "-d", "orders"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  catalog:
+    build:
+      context: ..
+      dockerfile: deploy/java.Dockerfile
+      args:
+        SERVICE: catalog-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://catalog-db:5432/catalog
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?}
+      CATALOG_SERVICE_HOST: 0.0.0.0
+      JAVA_TOOL_OPTIONS: -Xmx384m
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order:
+    build:
+      context: ..
+      dockerfile: deploy/java.Dockerfile
+      args:
+        SERVICE: order-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/orders
+      ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD:?}
+      ORDER_SERVICE_HOST: 0.0.0.0
+      JAVA_TOOL_OPTIONS: -Xmx384m
+    depends_on:
+      order-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: ..
+      dockerfile: deploy/agent.Dockerfile
+    environment:
+      AGENT_SERVICE_HOST: 0.0.0.0
+      CATALOG_SERVICE_URL: http://catalog:8081
+      ORDER_SERVICE_URL: http://order:8082
+      SEARCH_BACKEND: catalog
+      LLM_BASE_URL: ${LLM_BASE_URL:?}
+      LLM_MODEL: ${LLM_MODEL:?}
+      LLM_API_KEY: ${LLM_API_KEY:?}
+    volumes:
+      - agent-traces:/app/.local
+    depends_on:
+      - catalog
+      - order
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/peaupick-fe:/srv/fe:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - agent
+      - catalog
+      - order
+    restart: unless-stopped
+
+volumes:
+  catalog-db-data:
+  order-db-data:
+  agent-traces:
+  caddy-data:
+  caddy-config:

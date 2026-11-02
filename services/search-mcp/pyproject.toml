@@ -8,6 +8,13 @@ dependencies = [
     "mcp==2.2.0",
 ]
 
+[project.optional-dependencies]
+# BGE-M3 runs here (ADR-102). CI does not install it and searches with stored vectors instead.
+embed = [
+    "sentence-transformers==6.2.0",
+    "torch==2.14.1",
+]
+
 [project.scripts]
 search-mcp = "search_mcp.server:main"
 

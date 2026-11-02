@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from agent_service.config import settings
 from agent_service.llm import Llm, LlmError
 from agent_service.tools import McpTools, ToolError
 
@@ -16,11 +17,16 @@ MAX_ROUNDS = 5
 SEARCH_LIMIT = 5
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
+IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
 
 # The catalog matches q as one substring of names and reviews, so a multi-word q finds nothing.
+KEYWORD_QUERY = """- search_products로 상품을 찾는다. q에는 띄어쓰기 없는 한 단어를 넣고, 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
+- 질문에 상품 유형(토너, 수분크림, 세럼, 선크림 등)이 있으면 q에는 그 유형을 넣는다. 효과(진정, 보습 등)는 상품 유형이 없을 때만 q에 넣는다."""
+# Vector search compares q with whole reviews, so what a review would say about the product belongs in q (ADR-98).
+SEMANTIC_QUERY = """- search_products로 상품을 찾는다. q에는 질문이 찾는 상품 유형과 리뷰에 나올 만한 조건(피부 타입, 사용감, 효과 등)을 질문에 쓰인 말로 한 문장에 넣는다. 가격·카테고리·브랜드·성분 조건은 q에 넣지 않고 각 인자에 넣는다. 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
+- 질문에 상품 유형이 있으면 product_types에 그 유형을 상품명에 쓰이는 짧은 말로 넣고, 같은 유형을 부르는 다른 말이 있으면 함께 넣는다. 꾸미는 말은 뺀다(수분크림이면 크림)."""
 SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
-- search_products로 상품을 찾는다. q에는 띄어쓰기 없는 한 단어를 넣고, 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
-- 질문에 상품 유형(토너, 수분크림, 세럼, 선크림 등)이 있으면 q에는 그 유형을 넣는다. 효과(진정, 보습 등)는 상품 유형이 없을 때만 q에 넣는다.
+""" + (SEMANTIC_QUERY if settings.search_backend == "opensearch" else KEYWORD_QUERY) + """
 - 질문이 찾는 상품의 카테고리가 분명하면 category에 그 카테고리 이름을, 브랜드를 말하면 brand에 브랜드 이름을 넣는다. 분명하지 않으면 비워 둔다.
 - 질문이 어떤 성분이 빠진 상품을 원하면 exclude_ingredients에 그 성분을 넣는다.
 - 상품을 추천하기 전에 찾은 상품의 productId 전부로 check_inventory를 불러 재고를 확인한다.
@@ -30,16 +36,17 @@ SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
 - 상품 추천과 상관없는 말이면 도구를 부르지 말고 reasons를 빈 객체로 둔다."""
 
 
-async def run_agent(message: str, llm: Llm, tools: McpTools) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
+async def run_agent(message: str, llm: Llm, tools: McpTools,
+                    skin_type: str | None = None) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
     """Return answer, the last searched products, inventories and reasons.
 
     Raises LlmError when the LLM cannot finish or no search succeeded. A failed search can be the LLM's bad arguments
     as well as catalog being down, so it is left to the 1B fallback, whose own search tells the two apart.
     """
-    trace: dict[str, Any] = {"message": message, "calls": [], "usage": []}
+    trace: dict[str, Any] = {"message": message, "skinType": skin_type, "calls": [], "usage": []}
     started = time.monotonic()
     try:
-        answer, products, inventories, reasons = await _loop(message, llm, tools, trace)
+        answer, products, inventories, reasons = await _loop(message, llm, tools, trace, skin_type)
         trace.update(answer=answer, reasons={
             str(product_id): {"reason": reason, "inSearch": product_id in {p["productId"] for p in products},
                               "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), [])}
@@ -54,15 +61,19 @@ async def run_agent(message: str, llm: Llm, tools: McpTools) -> tuple[str, list[
         _write_trace(trace)
 
 
-async def _loop(message: str, llm: Llm, tools: McpTools,
-                trace: dict[str, Any]) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
+async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any],
+                skin_type: str | None) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT},
                                       {"role": "user", "content": message}]
     products: list[dict] | None = None
     inventories: dict[int, dict] = {}
     search_failed = False
+    # The limit covers the whole chat so the screen has one wait to plan for. Tool calls are not cut short: the one
+    # running at the deadline goes on to its own limit (CALL_TIMEOUT_SECONDS), and the 1B fallback then makes its own
+    # search and inventory calls, so the chat can overrun by up to three tool calls.
+    deadline = time.monotonic() + llm.timeout
     for _ in range(MAX_ROUNDS):
-        reply, usage = await llm.complete(messages, tools.definitions)
+        reply, usage = await llm.complete(messages, tools.definitions, timeout=deadline - time.monotonic())
         trace["usage"].append(usage)
         if not isinstance(reply, dict):
             raise LlmError(f"assistant message is not an object: {reply!r}")
@@ -72,13 +83,15 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
             break
         messages.append({"role": "assistant", "content": reply.get("content") or "", "tool_calls": calls})
         for call in calls:
+            if time.monotonic() >= deadline:
+                raise LlmError("no time left for another tool call")
             try:
                 call_id, name, raw_arguments = call["id"], call["function"]["name"], call["function"]["arguments"]
             except (KeyError, TypeError) as error:
                 raise LlmError(f"malformed tool call: {call!r}") from error
             # gpt-oss sometimes leaks its channel marker into the name: "search_products<|channel|>commentary".
             name = name.split("<|", 1)[0]
-            result = await _call_tool(tools, name, raw_arguments, trace)
+            result = await _call_tool(tools, name, raw_arguments, trace, skin_type)
             if name == "search_products":
                 if "error" in result:
                     search_failed = True
@@ -87,7 +100,7 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
             elif name == "check_inventory" and "error" not in result:
                 inventories.update(inventory_by_id(result))
             messages.append({"role": "tool", "tool_call_id": call_id,
-                             "content": json.dumps(result, ensure_ascii=False)})
+                             "content": json.dumps(_without_images(result), ensure_ascii=False)})
     else:
         raise LlmError(f"no final answer after {MAX_ROUNDS} rounds")
     if products is None and search_failed:
@@ -95,7 +108,8 @@ async def _loop(message: str, llm: Llm, tools: McpTools,
     return answer, products or [], inventories, reasons
 
 
-async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any]) -> dict[str, Any]:
+async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any],
+                     skin_type: str | None) -> dict[str, Any]:
     """Tool failures go back to the LLM as an error result so it can retry or answer without them."""
     entry: dict[str, Any] = {"name": name, "arguments": raw_arguments}
     trace["calls"].append(entry)
@@ -107,13 +121,25 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
         entry["error"] = f"invalid arguments: {error}"
         return {"error": entry["error"]}
     # Every searched product becomes a card, so the server caps the count whatever limit the LLM asked for.
+    # The skin type is the one the request chose, never the LLM's (ADR-120).
     if name == "search_products":
         arguments["limit"] = SEARCH_LIMIT
+        arguments.pop("skin_type", None)
+        if skin_type is not None:
+            arguments["skin_type"] = skin_type
     try:
         return await tools.call(name, arguments)
     except ToolError as error:
         entry["error"] = str(error)
         return {"error": entry["error"]}
+
+
+def _without_images(result: dict[str, Any]) -> dict[str, Any]:
+    """Image addresses are for the cards; on every search they would only cost the LLM tokens (ADR-127)."""
+    if "products" not in result:
+        return result
+    return {**result, "products": [{k: v for k, v in p.items() if k not in IMAGE_FIELDS}
+                                   for p in result["products"]]}
 
 
 def final_answer(content: Any) -> tuple[str, dict[int, str]]:

@@ -19,6 +19,7 @@ public class ProductSearch {
 
     // Products are ranked by how many reviews mention q. Name-only matches have no such
     // review, so their evidence falls back to the product's best reviews overall.
+    // A skin type only reorders evidence within that pool, so evidence keeps mentioning q (ADR-120).
     // Matching reviews are found in one pass and grouped; counting per product re-reads all reviews for every product.
     private static final String SEARCH = """
             WITH hits AS (
@@ -27,7 +28,7 @@ public class ProductSearch {
                 WHERE r.content ILIKE :pattern
                 GROUP BY r.product_id
             ), candidates AS (
-                SELECT p.id, p.name, p.brand_name, p.price, p.review_count, coalesce(h.hits, 0) AS hits
+                SELECT p.id, p.name, p.brand_name, p.price, p.image_url, p.review_count, coalesce(h.hits, 0) AS hits
                 FROM products p
                 LEFT JOIN hits h ON h.product_id = p.id
                 WHERE (CAST(:maxPrice AS integer) IS NULL OR p.price <= :maxPrice)
@@ -42,16 +43,18 @@ public class ProductSearch {
                 ORDER BY hits DESC, p.review_count DESC, p.id
                 LIMIT :limit
             )
-            SELECT c.id, c.name, c.brand_name, c.price, e.review_id, e.grade, e.content
+            SELECT c.id, c.name, c.brand_name, c.price, c.image_url, e.review_id, e.grade, e.content, e.skin_type
             FROM candidates c
             CROSS JOIN LATERAL (
-                SELECT r.id AS review_id, r.grade, r.content, r.written_at
+                SELECT r.id AS review_id, r.grade, r.content, r.written_at, r.skin_type,
+                       (r.skin_type = :skinType) IS TRUE AS same_skin
                 FROM reviews r
                 WHERE r.product_id = c.id AND (c.hits = 0 OR r.content ILIKE :pattern)
-                ORDER BY r.grade DESC, r.written_at DESC, r.id DESC
+                ORDER BY same_skin DESC, r.grade DESC, r.written_at DESC, r.id DESC
                 LIMIT 2
             ) e
-            ORDER BY c.hits DESC, c.review_count DESC, c.id, e.grade DESC, e.written_at DESC, e.review_id DESC
+            ORDER BY c.hits DESC, c.review_count DESC, c.id, e.same_skin DESC, e.grade DESC, e.written_at DESC,
+                     e.review_id DESC
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -61,7 +64,7 @@ public class ProductSearch {
     }
 
     public List<Product> search(String q, Integer maxPrice, String category, String brand,
-                                List<String> excludedIngredients, int limit) {
+                                List<String> excludedIngredients, String skinType, int limit) {
         var params = new MapSqlParameterSource()
                 .addValue("pattern", "%" + escapeLike(q) + "%")
                 .addValue("maxPrice", maxPrice)
@@ -70,6 +73,7 @@ public class ProductSearch {
                 .addValue("excludes", !excludedIngredients.isEmpty())
                 // An empty list would expand to "IN ()", which is not valid SQL.
                 .addValue("excluded", excludedIngredients.isEmpty() ? List.of("") : excludedIngredients)
+                .addValue("skinType", skinType)
                 .addValue("limit", limit);
 
         Map<Long, Product> products = new LinkedHashMap<>();
@@ -78,11 +82,11 @@ public class ProductSearch {
             var product = products.get(id);
             if (product == null) {
                 product = new Product(id, rs.getString("name"), rs.getString("brand_name"), rs.getInt("price"),
-                        new ArrayList<>());
+                        rs.getString("image_url"), Thumbnails.small(rs.getString("image_url")), new ArrayList<>());
                 products.put(id, product);
             }
             product.evidence().add(new Evidence(rs.getLong("review_id"), rs.getInt("grade"),
-                    excerpt(rs.getString("content"), q)));
+                    excerpt(rs.getString("content"), q), rs.getString("skin_type")));
         });
         return List.copyOf(products.values());
     }
@@ -124,7 +128,8 @@ public class ProductSearch {
         return q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
-    public record Product(long productId, String name, String brand, int price, List<Evidence> evidence) {}
+    public record Product(long productId, String name, String brand, int price, String imageUrl,
+                          String thumbnailUrl, List<Evidence> evidence) {}
 
-    public record Evidence(long reviewId, int rating, String excerpt) {}
+    public record Evidence(long reviewId, int rating, String excerpt, String skinType) {}
 }
