@@ -1,6 +1,7 @@
 # Only the public API paths go through; /internal/* (load and price APIs) and actuator answer 404.
 # Other GET requests get the FE build, which the FE repo's deploy workflow copies to /srv/peaupick-fe (ADR-125).
-:80 {
+# Caddy gets a certificate for SITE_ADDRESS by itself (ADR-126).
+{$SITE_ADDRESS} {
 	basic_auth {
 		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 	}
@@ -27,4 +28,9 @@
 	handle {
 		respond 404
 	}
+}
+
+# Plain HTTP, including requests by IP, goes to the HTTPS address. Temporary, so browsers do not keep it if the name changes.
+http:// {
+	redir https://{$SITE_ADDRESS}{uri}
 }

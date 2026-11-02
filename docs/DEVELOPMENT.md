@@ -176,7 +176,9 @@ make infra-reset CONFIRM=1
 | `/api/v1/inventories...`, `/api/v1/orders...` | order-service |
 | 그 밖의 GET | FE 빌드(서버 `/srv/peaupick-fe`) |
 
-1. `deploy/.env.example`을 `deploy/.env`로 복사해 DB 비밀번호, LLM 키, 팀 로그인 해시를 채운다. 해시는 아래 명령으로 만들고 작은따옴표로 감싼다(해시에 `$`가 들어 있다).
+Caddy는 `SITE_ADDRESS` 이름으로 HTTPS를 받고, 그 이름의 인증서를 Let's Encrypt에서 스스로 받는다(ADR-126). 서버에서는 공인 IP의 점을 대시로 바꾸고 `.sslip.io`를 붙인 이름을 쓴다. IP로 들어오는 요청을 포함해 HTTP 요청은 이 HTTPS 주소로 넘긴다. 보안 그룹은 80번(인증서 발급과 넘기기)과 443번을 연다.
+
+1. `deploy/.env.example`을 `deploy/.env`로 복사해 사이트 이름, DB 비밀번호, LLM 키, 팀 로그인 해시를 채운다. 해시는 아래 명령으로 만들고 작은따옴표로 감싼다(해시에 `$`가 들어 있다).
 
 ```bash
 docker run --rm caddy:2.10.2-alpine caddy hash-password --plaintext '<팀 비밀번호>'
@@ -201,10 +203,10 @@ docker compose -f deploy/compose.yaml up -d --build
 4. 확인한다. 팀 계정 없이 부르면 401이다.
 
 ```bash
-curl -u team:<팀 비밀번호> 'http://<서버 주소>/api/v1/products?category=104001&size=1'
+curl -u team:<팀 비밀번호> 'https://<SITE_ADDRESS>/api/v1/products?category=104001&size=1'
 ```
 
-HTTP라서 팀 비밀번호와 응답이 암호화되지 않는다. 최종 시연 전에 도메인과 HTTPS를 붙인다(ADR-123).
+처음 뜰 때 인증서를 받는다. 받았는지는 `docker compose -f deploy/compose.yaml logs caddy`의 `certificate obtained successfully`로 확인한다. 못 받으면 브라우저가 HTTPS 연결을 거부한다. 인증서는 `caddy-data` 볼륨에 남아 컨테이너를 다시 만들어도 다시 받지 않는다.
 
 ### FE 빌드
 
