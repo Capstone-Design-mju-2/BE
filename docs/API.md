@@ -48,6 +48,8 @@ POST /api/v1/chat
       "name": "수분크림 A",
       "brand": "브랜드 A",
       "price": 25900,
+      "imageUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_500.jpg",
+      "thumbnailUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_125.jpg",
       "reason": "건성 피부 사용자의 보습력 평가가 높고 끈적임 언급이 적습니다.",
       "evidence": [
         { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
@@ -76,6 +78,8 @@ POST /api/v1/chat
 
 `evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다. 검색 경로가 OpenSearch이면 이 필드가 없다.
 
+`imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 두 필드가 없다.
+
 ## 2. Catalog API
 
 ```text
@@ -102,6 +106,8 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
       "name": "수분크림 A",
       "brand": "브랜드 A",
       "price": 25900,
+      "imageUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_500.jpg",
+      "thumbnailUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_125.jpg",
       "evidence": [
         { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
         { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요", "skinType": null }
@@ -114,6 +120,8 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 - `evidence`는 상품당 최대 2개다. `q`가 리뷰 본문에 걸린 리뷰를 별점 높은 순으로 고르고, 동점이면 최신순으로 고른다. `q`가 상품명에만 걸려 리뷰 본문에 걸린 리뷰가 없는 상품은 같은 정렬로 그 상품의 전체 리뷰에서 고른다. 리뷰가 하나도 없는 상품은 결과에서 뺀다. 이 정렬 규칙은 잠정값이며 검색 품질 측정 후 바꿀 수 있다.
 - `skinType`을 주면 위에서 고를 리뷰들(`q`가 걸린 리뷰, 없으면 전체 리뷰) 안에서 그 피부 타입 작성자의 리뷰를 먼저 고르고, 나머지는 같은 정렬을 따른다. `q`가 걸리지 않은 같은 피부 타입 리뷰를 `q`가 걸린 리뷰보다 앞에 두지는 않는다.
 - `evidence`의 `skinType`은 작성자가 고른 값이고, 고르지 않았으면 `null`이다.
+- `imageUrl`은 무신사 이미지 서버의 상품 사진(500px, 장당 약 190KB)이고 `thumbnailUrl`은 같은 사진의 125px(약 20KB)이다(ADR-127). 카드처럼 작게 보일 때는 `thumbnailUrl`, 크게 보일 때는 `imageUrl`을 쓴다. 사진 파일은 우리 서버에 없고 브라우저가 무신사 서버(CDN, 1년 캐시)에서 바로 받는다.
+- 사진 주소는 2026-11-02 무신사 상품 목록에서 받았다. 그때 목록에 없던 상품은 둘 다 `null`이다. 헬스/푸드(`104012`)는 무신사 목록이 비어 있어 전부 `null`이다. `thumbnailUrl`은 `imageUrl`의 이름 규칙(`_500`을 `_125`로)으로 만든 주소라, 못 불러오면 `imageUrl`로 바꿔 쓴다.
 - `excerpt`는 80자를 넘기지 않는다. LLM 입력 토큰은 이 값에 비례한다.
 - `excerpt`는 `q`가 든 문장의 처음부터 보여준다. 문장은 줄바꿈이나 띄어쓰기가 뒤따르는 `.` `!` `?`에서 나눈다. 문장 처음부터 `q`까지가 80자를 넘으면 `q` 앞쪽 단어 처음부터 `…`를 붙여 보여준다.
 - 피부 타입으로 상품을 거르지는 않는다. "건성"은 리뷰 본문 키워드로 걸린다. 채팅의 `skinType`은 이 API의 `skinType`으로 넘어가 근거 리뷰를 고르는 순서에만 쓴다.
@@ -144,13 +152,16 @@ GET /api/v1/products?category=104001&sort=popular&page=0&size=20
   "size": 20,
   "total": 2185,
   "products": [
-    { "productId": 101, "name": "수분크림 A", "brand": "브랜드 A", "price": 25900, "reviewCount": 1520, "reviewScore": 96 }
+    { "productId": 101, "name": "수분크림 A", "brand": "브랜드 A", "price": 25900, "reviewCount": 1520, "reviewScore": 96,
+      "imageUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_500.jpg",
+      "thumbnailUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_125.jpg" }
   ]
 }
 ```
 
 - 메인 화면 랭킹은 `sort=popular`로 부른다.
 - 정렬 값이 같으면 `productId` 순으로 이어 정렬해서 페이지끼리 겹치지 않는다. `page`가 마지막 쪽을 넘으면 `products`는 빈 배열이고 `total`은 그대로다.
+- `imageUrl`, `thumbnailUrl`은 검색 응답과 같다(위 검색의 사진 규칙).
 - `reviewScore`는 수집한 평점 그대로 0~100이다.
 - 상품 이미지는 수집하지 않아 응답에 없다.
 - 없는 카테고리 코드(상품이 하나도 없는 코드)나 범위를 벗어난 `page`·`size`·`sort`는 400 `INVALID_PRODUCT_LIST`다.
@@ -205,6 +216,18 @@ POST /internal/products/load
 
 - 상품은 `externalId`, 리뷰는 `(productId, externalId)`로 구분한다. 같은 요청을 여러 번 보내도 결과가 같다.
 - 별점이 없는 리뷰(`grade` 0)는 DB 제약(1~5)에 걸리므로 보내는 쪽에서 뺀다(ADR-65).
+
+### 상품 사진 주소 적재 (수집기 전용)
+
+```text
+PUT /internal/products/{externalId}/image
+```
+
+요청: `{ "imageUrl": "https://image.msscdn.net/..." }`. `scripts/load_thumbnails.py`가 부른다(ADR-127).
+
+- 성공하면 204, 그 무신사 상품번호의 상품이 없으면 404다.
+- `imageUrl`은 `https://`로 시작하는 300자 이하 주소만 받는다. 화면이 `img` 태그에 그대로 넣기 때문이다. 아니면 400이다.
+- 상품·리뷰를 다시 적재해도 사진 주소는 지워지지 않는다.
 
 ## 3. Inventory API
 
@@ -351,6 +374,8 @@ agent는 `NOT_FOUND` 상품을 응답에서 제외한다. 화면이 다루는 �
 
 `reason`이 `null`이면 그 줄을 숨기고 `evidence`만 보여준다. 1C 전까지는 계속 `null`이다.
 
+상품 사진은 카드에 `thumbnailUrl`을, 크게 보일 때 `imageUrl`을 쓴다. `loading="lazy"`로 화면에 가까워질 때만 받고, 사진 자리의 가로·세로를 미리 정해 카드가 밀리지 않게 한다. 두 필드가 `null`이면 "이미지 없음"을 보이고, `thumbnailUrl`을 못 불러오면 `imageUrl`로 바꾼다(ADR-127).
+
 목업 응답은 [mocks/chat-response.example.json](mocks/chat-response.example.json)에 있다. 백엔드 없이 이 파일만으로 화면을 만들 수 있다.
 
 ## 5. 완료 기준
@@ -377,6 +402,7 @@ Catalog API (catalog-service)
 - 카테고리별 상품 목록을 같은 정렬로 0쪽과 1쪽 받으면 겹치는 상품이 없다.
 - 리뷰 조회에 `skinType`을 주면 그 피부 타입 작성자의 리뷰만 돌아오고, 없는 상품은 404다.
 - 검색에 `skinType`을 주면 상품 목록과 순서는 그대로이고, 상품마다 `q`가 걸린 리뷰 중 그 피부 타입 작성자의 리뷰가 근거 앞에 온다.
+- 사진 주소가 있는 상품은 목록과 검색에 `imageUrl`과 `thumbnailUrl`이 오고, 없는 상품은 둘 다 `null`이다.
 
 Agent API (agent-service)
 
@@ -384,3 +410,4 @@ Agent API (agent-service)
 - order-service를 내린 뒤 같은 질문을 하면 카드가 그대로 나오고 `inventory.status`가 전부 `UNKNOWN`이다.
 - catalog-service를 내린 뒤 같은 질문을 하면 오류 본문을 반환한다.
 - `skinType`을 주면 LLM이 무엇을 넣든 그 값이 검색에 넘어가고, 네 값 밖이면 400 `INVALID_CHAT_REQUEST`다.
+- 카드에는 사진 주소가 오고, LLM에게 넘기는 검색 결과에는 사진 주소가 없다.

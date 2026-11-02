@@ -6,6 +6,8 @@
       "name": "수분크림 A",
       "brand": "브랜드 A",
       "price": 25900,
+      "imageUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_500.jpg",
+      "thumbnailUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_125.jpg",
       "reason": "건성 피부 사용자의 보습력 평가가 높고 끈적임 언급이 적습니다.",
       "evidence": [
         { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
@@ -22,6 +24,8 @@
       "name": "수분크림 B",
       "brand": "브랜드 B",
       "price": 19800,
+      "imageUrl": null,
+      "thumbnailUrl": null,
       "reason": null,
       "evidence": [
         { "reviewId": 9102, "rating": 5, "excerpt": "겨울에도 속당김이 없고 흡수가 빨라요", "skinType": "combination" }
@@ -37,6 +41,8 @@
       "name": "수분크림 C",
       "brand": "브랜드 C",
       "price": 29500,
+      "imageUrl": null,
+      "thumbnailUrl": null,
       "reason": null,
       "evidence": [
         { "reviewId": 9210, "rating": 4, "excerpt": "가볍게 발리고 유분기가 남지 않아요", "skinType": "oily" },

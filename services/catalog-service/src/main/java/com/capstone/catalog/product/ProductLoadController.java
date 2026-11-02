@@ -37,7 +37,17 @@ public class ProductLoadController {
                 : ResponseEntity.notFound().build();
     }
 
+    @PutMapping("/{externalId}/image")
+    public ResponseEntity<Void> loadImage(@PathVariable long externalId, @Valid @RequestBody ImageRequest request) {
+        return productLoader.loadImage(externalId, request.imageUrl())
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
+
     public record LoadResponse(long productId, int reviewCount) {}
+
+    /** The screen puts it straight into an img tag, so only https addresses are taken. */
+    public record ImageRequest(@NotNull @Size(max = 300) @Pattern(regexp = "https://\\S+") String imageUrl) {}
 
     /** An empty names list marks the product's ingredients as unknown; source is then ignored. */
     public record IngredientsRequest(

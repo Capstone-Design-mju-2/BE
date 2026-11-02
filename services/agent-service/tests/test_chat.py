@@ -248,6 +248,17 @@ class LlmChatTest(unittest.TestCase):
                 self.assertEqual(tools.skin_types, [expected])
                 self.assertEqual(self.traces()[-1]["skinType"], expected)
 
+    def test_사진_주소는_카드에만_싣고_LLM에게는_넘기지_않는다(self):
+        url = "https://image.msscdn.net/images/goods_img/20260930/1/1_1_500.jpg"
+        small = url.replace("_500.", "_125.")
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        serve({"products": [{**SEARCH["products"][0], "imageUrl": url, "thumbnailUrl": small}]}, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual((body["products"][0]["imageUrl"], body["products"][0]["thumbnailUrl"]), (url, small))
+        self.assertEqual(llm.requests[-1][-1]["role"], "tool")
+        self.assertNotIn("msscdn", llm.requests[-1][-1]["content"])
+
     def test_검색_결과에_없는_상품의_reason은_버린다(self):
         serve(SEARCH, INVENTORY, FakeLlm(
             tool_call("search_products", {"q": "수분크림"}),

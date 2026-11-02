@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.capstone.catalog.TestcontainersConfiguration;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,6 +55,18 @@ class ProductListControllerTest {
                 .andExpect(jsonPath("$.products[0].price").value(15000))
                 .andExpect(jsonPath("$.products[0].reviewCount").value(900))
                 .andExpect(jsonPath("$.products[0].reviewScore").value(95));
+    }
+
+    @Test
+    void 썸네일이_있으면_주소를_주고_없으면_null이다() throws Exception {
+        String url = "https://image.msscdn.net/images/goods_img/20260930/2000/2000_1_500.jpg";
+        jdbcTemplate.update("UPDATE products SET image_url = ? WHERE id = 2", url);
+
+        mockMvc.perform(get("/api/v1/products").param("category", "104001"))
+                .andExpect(jsonPath("$.products[0].imageUrl").value(url))
+                .andExpect(jsonPath("$.products[0].thumbnailUrl").value(url.replace("_500.jpg", "_125.jpg")))
+                .andExpect(jsonPath("$.products[1].imageUrl").value(nullValue()))
+                .andExpect(jsonPath("$.products[1].thumbnailUrl").value(nullValue()));
     }
 
     @Test

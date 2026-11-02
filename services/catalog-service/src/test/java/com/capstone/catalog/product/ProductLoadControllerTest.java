@@ -127,6 +127,21 @@ class ProductLoadControllerTest {
     }
 
     @Test
+    void 썸네일_주소는_다시_적재해도_남고_없는_상품은_404이며_https가_아니면_400이다() throws Exception {
+        load(PRODUCT.formatted(40000, "촉촉해요"));
+        String url = "https://image.msscdn.net/images/goods_img/20260930/5816625/5816625_1_500.jpg";
+
+        putImage(5816625, "{\"imageUrl\": \"" + url + "\"}").andExpect(status().isNoContent());
+        load(PRODUCT.formatted(35000, "겨울에도 촉촉해요"));
+        assertThat(jdbcTemplate.queryForObject("SELECT image_url FROM products", String.class)).isEqualTo(url);
+
+        putImage(1, "{\"imageUrl\": \"" + url + "\"}").andExpect(status().isNotFound());
+        putImage(5816625, "{\"imageUrl\": \"http://image.msscdn.net/a.jpg\"}").andExpect(status().isBadRequest());
+        putImage(5816625, "{\"imageUrl\": \"javascript:alert(1)\"}").andExpect(status().isBadRequest());
+        putImage(5816625, "{}").andExpect(status().isBadRequest());
+    }
+
+    @Test
     void 필수_값이_없으면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/internal/products/load")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,6 +157,11 @@ class ProductLoadControllerTest {
 
     private ResultActions putIngredients(long externalId, String body) throws Exception {
         return mockMvc.perform(put("/internal/products/{externalId}/ingredients", externalId)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    private ResultActions putImage(long externalId, String body) throws Exception {
+        return mockMvc.perform(put("/internal/products/{externalId}/image", externalId)
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
