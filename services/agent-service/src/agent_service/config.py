@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     llm_model: str = Field(default="openai/gpt-oss-20b", validation_alias="LLM_MODEL")
     llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
     llm_timeout_seconds: float = Field(default=60.0, validation_alias="LLM_TIMEOUT_SECONDS")
+    # Asked from the start when the main LLM is slow or down (ADR-129). No model or key: no fallback.
+    llm_fallback_base_url: str = Field(default="https://openrouter.ai/api/v1", validation_alias="LLM_FALLBACK_BASE_URL")
+    llm_fallback_model: str = Field(default="", validation_alias="LLM_FALLBACK_MODEL")
+    llm_fallback_api_key: str = Field(default="", validation_alias="LLM_FALLBACK_API_KEY")
+    llm_fallback_after_seconds: float = Field(default=12.0, validation_alias="LLM_FALLBACK_AFTER_SECONDS")
 
 
 settings = Settings()

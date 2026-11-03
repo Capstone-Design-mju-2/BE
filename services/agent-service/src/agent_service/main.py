@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -50,19 +51,34 @@ def get_tools(request: Request) -> McpTools:
 def get_llm() -> Llm | None:
     if not settings.llm_api_key:
         return None
-    return Llm(settings.llm_base_url, settings.llm_api_key, settings.llm_model, settings.llm_timeout_seconds)
+    call_timeout = settings.llm_fallback_after_seconds if get_fallback_llm() else None
+    return Llm(settings.llm_base_url, settings.llm_api_key, settings.llm_model, settings.llm_timeout_seconds,
+               call_timeout)
+
+
+def get_fallback_llm() -> Llm | None:
+    if not (settings.llm_fallback_model and settings.llm_fallback_api_key):
+        return None
+    return Llm(settings.llm_fallback_base_url, settings.llm_fallback_api_key, settings.llm_fallback_model,
+               settings.llm_timeout_seconds)
 
 
 @app.post("/api/v1/chat", tags=["chat"])
-async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: Llm | None = Depends(get_llm)):
+async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: Llm | None = Depends(get_llm),
+               fallback: Llm | None = Depends(get_fallback_llm)):
     try:
         if llm is not None:
-            try:
-                answer, products, inventories, reasons = await run_agent(request.message, llm, tools,
-                                                                         request.skin_type)
-                return {"answer": answer, "products": cards(products, inventories, reasons)}
-            except LlmError as error:
-                logger.warning("LLM could not answer, falling back to the 1B rules (ADR-92): %r", error)
+            # Both LLMs share one limit, so the screen still has one wait to plan for (ADR-129).
+            deadline = time.monotonic() + llm.timeout
+            for current in [llm, fallback] if fallback else [llm]:
+                try:
+                    answer, products, inventories, reasons = await run_agent(request.message, current, tools,
+                                                                             request.skin_type, deadline)
+                    return {"answer": answer, "products": cards(products, inventories, reasons)}
+                except LlmError as error:
+                    logger.warning("LLM %s could not answer (ADR-92, ADR-129): %r", current.model, error)
+                    if not error.provider_down:
+                        break
         return await _rule_chat(request.message, tools, request.skin_type)
     except ToolError:
         return JSONResponse(status_code=502,

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from agent_service import agent
 from agent_service.llm import LlmError
-from agent_service.main import app, get_llm, get_tools
+from agent_service.main import app, get_fallback_llm, get_llm, get_tools
 from agent_service.tools import ToolError
 
 MESSAGE = "건성 피부에 끈적이지 않는 수분크림 중 3만원 이하인 상품 추천해 줘"
@@ -66,7 +66,8 @@ class FakeLlm:
 
     timeout = 60.0
 
-    def __init__(self, *replies):
+    def __init__(self, *replies, model="fake"):
+        self.model = model
         self.replies = list(replies)
         self.requests = []
 
@@ -90,7 +91,7 @@ class SlowLlm(FakeLlm):
             async with asyncio.timeout(timeout):
                 await asyncio.sleep(self.delay)
         except TimeoutError as error:
-            raise LlmError("timed out") from error
+            raise LlmError("timed out", provider_down=True) from error
         return await super().complete(messages, tools, timeout)
 
 
@@ -103,10 +104,11 @@ def final(answer, reasons):
     return {"role": "assistant", "content": json.dumps({"answer": answer, "reasons": reasons}, ensure_ascii=False)}
 
 
-def serve(search=None, inventory=None, llm=None):
+def serve(search=None, inventory=None, llm=None, fallback=None):
     tools = FakeTools(search, inventory)
     app.dependency_overrides[get_tools] = lambda: tools
     app.dependency_overrides[get_llm] = lambda: llm
+    app.dependency_overrides[get_fallback_llm] = lambda: fallback
     return tools
 
 
@@ -325,6 +327,43 @@ class LlmChatTest(unittest.TestCase):
 
         self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
         self.assertEqual(tools.calls, [("search_products", "수분크림", 30000, 5), ("check_inventory", [1, 2, 3])])
+
+    def test_LLM_쪽이_막히면_같은_질문을_예비_LLM으로_처음부터_다시_한다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), LlmError("503", provider_down=True),
+                      model="main")
+        fallback = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                           final("예비가 골랐어요.", {"1": "촉촉하다는 리뷰가 있어요."}), model="fallback")
+        serve(SEARCH, INVENTORY, llm, fallback)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "예비가 골랐어요.")
+        self.assertEqual(body["products"][0]["reason"], "촉촉하다는 리뷰가 있어요.")
+        # The fallback starts from the question, without the first LLM's tool calls.
+        self.assertEqual([m["role"] for m in fallback.requests[0]], ["system", "user"])
+        self.assertEqual([(t["model"], "error" in t) for t in self.traces()], [("main", True), ("fallback", False)])
+
+    def test_답이_잘못됐을_때는_예비_LLM으로_넘어가지_않고_1B_규칙으로_답한다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                      {"role": "assistant", "content": "수분크림 추천해요"})
+        fallback = FakeLlm(final("쓰이면 안 돼요.", {}))
+        serve(SEARCH, INVENTORY, llm, fallback)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertEqual(fallback.requests, [])
+
+    def test_예비_LLM은_처음_LLM이_쓰고_남은_시간만_쓴다(self):
+        # The first call takes 0.3s of the 0.4s limit; the second runs out and the fallback gets about nothing.
+        llm = SlowLlm(0.3, tool_call("search_products", {"q": "수분크림"}), final("늦었어요.", {}))
+        llm.timeout = 0.4
+        fallback = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("쓰이면 안 돼요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm, fallback)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 2개를 찾았습니다.")
+        self.assertEqual(len(fallback.requests), 1)
+        self.assertEqual([call[0] for call in tools.calls],
+                         ["search_products", "search_products", "check_inventory"])
 
     def test_LLM_경로에서_catalog가_내려가면_1B도_실패해_오류_본문을_반환한다(self):
         tools = serve(None, INVENTORY, FakeLlm(tool_call("search_products", {"q": "수분크림"}),
