@@ -36,17 +36,19 @@ SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
 - 상품 추천과 상관없는 말이면 도구를 부르지 말고 reasons를 빈 객체로 둔다."""
 
 
-async def run_agent(message: str, llm: Llm, tools: McpTools,
-                    skin_type: str | None = None) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
+async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | None = None,
+                    deadline: float | None = None) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
     """Return answer, the last searched products, inventories and reasons.
 
     Raises LlmError when the LLM cannot finish or no search succeeded. A failed search can be the LLM's bad arguments
     as well as catalog being down, so it is left to the 1B fallback, whose own search tells the two apart.
+    deadline (time.monotonic()) defaults to llm.timeout from now; a fallback LLM gets what the first one left.
     """
-    trace: dict[str, Any] = {"message": message, "skinType": skin_type, "calls": [], "usage": []}
+    trace: dict[str, Any] = {"model": llm.model, "message": message, "skinType": skin_type, "calls": [], "usage": []}
     started = time.monotonic()
     try:
-        answer, products, inventories, reasons = await _loop(message, llm, tools, trace, skin_type)
+        answer, products, inventories, reasons = await _loop(message, llm, tools, trace, skin_type,
+                                                              deadline or time.monotonic() + llm.timeout)
         trace.update(answer=answer, reasons={
             str(product_id): {"reason": reason, "inSearch": product_id in {p["productId"] for p in products},
                               "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), [])}
@@ -61,8 +63,8 @@ async def run_agent(message: str, llm: Llm, tools: McpTools,
         _write_trace(trace)
 
 
-async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any],
-                skin_type: str | None) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
+async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
+                deadline: float) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT},
                                       {"role": "user", "content": message}]
     products: list[dict] | None = None
@@ -71,7 +73,6 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any],
     # The limit covers the whole chat so the screen has one wait to plan for. Tool calls are not cut short: the one
     # running at the deadline goes on to its own limit (CALL_TIMEOUT_SECONDS), and the 1B fallback then makes its own
     # search and inventory calls, so the chat can overrun by up to three tool calls.
-    deadline = time.monotonic() + llm.timeout
     for _ in range(MAX_ROUNDS):
         reply, usage = await llm.complete(messages, tools.definitions, timeout=deadline - time.monotonic())
         trace["usage"].append(usage)
