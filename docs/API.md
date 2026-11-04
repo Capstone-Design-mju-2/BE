@@ -15,7 +15,7 @@
 ```
 
 - 검색은 `limit`만 쓴다. 목록 API(카테고리별 상품, 리뷰 조회)만 `page`·`size`로 나눠 준다.
-- 대화 기록 식별자는 두지 않는다. 저장 여부가 미정이다.
+- 대화 기록 식별자는 두지 않는다. 저장 여부가 미정이다. 품절 대안은 대화 기록 대신 앞 답의 검색 조건을 돌려받는다(1절 "품절 대안", ADR-131).
 
 ## 1. Agent API
 
@@ -61,7 +61,8 @@ POST /api/v1/chat
         "estimatedDeliveryDate": "2026-09-17"
       }
     }
-  ]
+  ],
+  "searchConditions": { "q": "수분크림", "max_price": 30000 }
 }
 ```
 
@@ -79,6 +80,32 @@ POST /api/v1/chat
 `evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다. 검색 경로가 OpenSearch이면 이 필드가 없다.
 
 `imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 두 필드가 없다.
+
+`searchConditions`는 카드를 만든 검색의 조건이다. 키 이름은 검색 도구의 인자 그대로라 검색 경로마다 다르다(OpenSearch 경로에는 `product_types`가 더 있다). 피부 타입과 개수는 들어 있지 않다. 화면은 내용을 해석하지 않고 그 답과 함께 들고 있다가, 품절 대안을 요청할 때 그대로 돌려준다. 검색하지 않은 답은 `null`이다.
+
+### 품절 대안
+
+주문이 409 `OUT_OF_STOCK`으로 실패하면 화면은 "방금 품절됐어요"를 보이고, 같은 `POST /api/v1/chat`으로 처음 조건 그대로의 대안을 요청한다(ADR-131, PRD 스토리 8). 주문 화면의 옵션 조회에서 모든 옵션이 품절일 때도 같다.
+
+요청
+
+```json
+{
+  "message": "건성 피부에 끈적이지 않는 수분크림 중 내일 도착 가능하고 3만원 이하인 상품 추천해 줘",
+  "skinType": "dry",
+  "searchConditions": { "q": "수분크림", "max_price": 30000 },
+  "excludeProductIds": [101]
+}
+```
+
+- `message`와 `skinType`은 카드가 나온 처음 요청 그대로, `searchConditions`는 그 답의 값 그대로 보낸다.
+- `excludeProductIds`에는 품절된 상품 ID를 넣는다. 주문 실패라면 `failedItem.productId`다. 대안에서 또 품절되면 앞서 뺀 ID에 더해 보낸다. 최대 10개다.
+- agent는 LLM이 고른 검색 인자 대신 `searchConditions`로 검색하고, LLM은 답과 추천 이유만 쓴다. LLM이 막혀 규칙 답이 되어도 같은 조건으로 검색한다.
+- `excludeProductIds`의 상품은 카드에 나오지 않는다. 뺀 만큼 더 찾아서 카드는 최대 5개다.
+- 응답 모양은 위와 같고, `searchConditions`는 보낸 값 그대로다. 대안에 섞인 다른 품절 상품은 4절 규칙대로 "품절"로 보인다.
+- 두 필드는 따로 써도 된다. `searchConditions`만 주면 조건만 고정하고, `excludeProductIds`만 주면 LLM이 조건을 다시 정한다.
+- `excludeProductIds`가 숫자 배열이 아니거나 10개를 넘거나, `searchConditions`가 객체가 아니면 400 `INVALID_CHAT_REQUEST`다. 값을 바꿔 보내 검색 도구가 받지 않으면 502 `PRODUCT_SEARCH_FAILED`다.
+- `INSUFFICIENT_STOCK`(재고가 요청 수량보다 적음)과 그 밖의 주문 실패는 품절 대안을 요청하지 않는다.
 
 ## 2. Catalog API
 
@@ -384,7 +411,7 @@ POST /api/v1/orders
 
 실패 응답
 
-공통 오류 본문에 `failedItem`을 더한다. agent가 실패 사유와 원래 조건을 보고 대안 상품을 다시 찾을 수 있게 한다.
+공통 오류 본문에 `failedItem`을 더한다. `OUT_OF_STOCK`이면 화면이 `failedItem.productId`를 빼고 품절 대안을 요청한다(1절 "품절 대안").
 
 ```json
 {
@@ -453,3 +480,6 @@ Agent API (agent-service)
 - catalog-service를 내린 뒤 같은 질문을 하면 오류 본문을 반환한다.
 - `skinType`을 주면 LLM이 무엇을 넣든 그 값이 검색에 넘어가고, 네 값 밖이면 400 `INVALID_CHAT_REQUEST`다.
 - 카드에는 사진 주소가 오고, LLM에게 넘기는 검색 결과에는 사진 주소가 없다.
+- 검색한 답에는 `searchConditions`가 있다.
+- `searchConditions`를 주면 LLM이 무엇을 넣든 그 값으로 검색하고, 응답의 `searchConditions`가 보낸 값과 같다. LLM 없이 규칙으로 답해도 같다.
+- `excludeProductIds`의 상품은 카드에 없고, 카드는 최대 5개다.
