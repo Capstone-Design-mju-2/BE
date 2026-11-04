@@ -3,6 +3,8 @@ name: capstone-be
 services:
   catalog-db:
     image: postgres:17.6-alpine
+    # Debezium reads the outbox from the write-ahead log, which needs logical decoding (ADR-132).
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       POSTGRES_DB: ${CATALOG_DB_NAME:-catalog}
       POSTGRES_USER: ${CATALOG_DB_USER:-catalog}
@@ -39,11 +41,60 @@ services:
     image: redis:7.4.2-alpine
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
+
+  # One KRaft broker carrying the outbox events Debezium reads from catalog-db (ADR-132), only for the sync
+  # experiment: start it with `docker compose up -d kafka connect`. The indexer on the Mac uses the host listener,
+  # Kafka Connect the internal one. Memory limits follow ADR-118. Topics live in the container, not a volume.
+  kafka:
+    image: apache/kafka:4.3.2
+    profiles: ["cdc"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: HOST://:9092,DOCKER://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://127.0.0.1:${KAFKA_PORT:-9092},DOCKER://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:PLAINTEXT,DOCKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: DOCKER
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
+    mem_limit: 1g
+    restart: unless-stopped
+
+  # Kafka Connect with the Debezium connectors. scripts/register_outbox_connector.py adds the one for catalog's
+  # outbox; its database password comes from this environment, not from the connector config.
+  connect:
+    image: quay.io/debezium/connect:3.6.2.Final
+    profiles: ["cdc"]
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: catalog-connect
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-status
+      HEAP_OPTS: -Xms256m -Xmx512m
+      CONNECT_CONFIG_PROVIDERS: env
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog-local}
+    ports:
+      - "127.0.0.1:${CONNECT_PORT:-8083}:8083"
+    depends_on:
+      - kafka
+      - catalog-db
+    mem_limit: 1g
     restart: unless-stopped
 
   # Review vectors for semantic search (ADR-98, ADR-101). 800k reviews at 16-bit need about 1.64 GiB of native memory
