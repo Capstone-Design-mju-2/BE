@@ -6,6 +6,7 @@ catalog and order responses as the contract requires.
 
 import json
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from agent_service.tools import McpTools, ToolError
 
 MAX_ROUNDS = 5
 SEARCH_LIMIT = 5
+# Search arguments the server sets itself, so they stay out of the conditions an alternative sends back (ADR-131).
+SERVER_ARGUMENTS = {"limit", "skin_type"}
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
@@ -37,24 +40,30 @@ SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
 
 
 async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | None = None,
-                    deadline: float | None = None) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
-    """Return answer, the last searched products, inventories and reasons.
+                    deadline: float | None = None, conditions: dict[str, Any] | None = None,
+                    exclude: Sequence[int] = ()
+                    ) -> tuple[str, list[dict], dict[int, dict], dict[int, str], dict[str, Any] | None]:
+    """Return answer, the last searched products, inventories, reasons and the conditions of that search.
 
     Raises LlmError when the LLM cannot finish or no search succeeded. A failed search can be the LLM's bad arguments
     as well as catalog being down, so it is left to the 1B fallback, whose own search tells the two apart.
     deadline (time.monotonic()) defaults to llm.timeout from now; a fallback LLM gets what the first one left.
+    An alternative to a sold-out product passes the first answer's conditions, searched whatever the LLM asks for,
+    and the products to exclude (ADR-131).
     """
-    trace: dict[str, Any] = {"model": llm.model, "message": message, "skinType": skin_type, "calls": [], "usage": []}
+    trace: dict[str, Any] = {"model": llm.model, "message": message, "skinType": skin_type,
+                             "searchConditions": conditions, "excludeProductIds": list(exclude), "calls": [],
+                             "usage": []}
     started = time.monotonic()
     try:
-        answer, products, inventories, reasons = await _loop(message, llm, tools, trace, skin_type,
-                                                              deadline or time.monotonic() + llm.timeout)
+        answer, products, inventories, reasons, searched = await _loop(
+            message, llm, tools, trace, skin_type, deadline or time.monotonic() + llm.timeout, conditions, exclude)
         trace.update(answer=answer, reasons={
             str(product_id): {"reason": reason, "inSearch": product_id in {p["productId"] for p in products},
                               "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), [])}
             for product_id, reason in reasons.items()
         })
-        return answer, products, inventories, reasons
+        return answer, products, inventories, reasons, searched
     except LlmError as error:
         trace["error"] = repr(error)
         raise
@@ -64,10 +73,12 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
 
 
 async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
-                deadline: float) -> tuple[str, list[dict], dict[int, dict], dict[int, str]]:
+                deadline: float, conditions: dict[str, Any] | None, exclude: Sequence[int]
+                ) -> tuple[str, list[dict], dict[int, dict], dict[int, str], dict[str, Any] | None]:
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT},
                                       {"role": "user", "content": message}]
     products: list[dict] | None = None
+    searched = conditions
     inventories: dict[int, dict] = {}
     search_failed = False
     # The limit covers the whole chat so the screen has one wait to plan for. Tool calls are not cut short: the one
@@ -92,12 +103,13 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
                 raise LlmError(f"malformed tool call: {call!r}") from error
             # gpt-oss sometimes leaks its channel marker into the name: "search_products<|channel|>commentary".
             name = name.split("<|", 1)[0]
-            result = await _call_tool(tools, name, raw_arguments, trace, skin_type)
+            result, arguments = await _call_tool(tools, name, raw_arguments, trace, skin_type, conditions, exclude)
             if name == "search_products":
                 if "error" in result:
                     search_failed = True
                 else:
                     products = result["products"]
+                    searched = {k: v for k, v in arguments.items() if k not in SERVER_ARGUMENTS}
             elif name == "check_inventory" and "error" not in result:
                 inventories.update(inventory_by_id(result))
             messages.append({"role": "tool", "tool_call_id": call_id,
@@ -106,12 +118,16 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
         raise LlmError(f"no final answer after {MAX_ROUNDS} rounds")
     if products is None and search_failed:
         raise LlmError("every search_products call failed")
-    return answer, products or [], inventories, reasons
+    return answer, products or [], inventories, reasons, searched
 
 
-async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any],
-                     skin_type: str | None) -> dict[str, Any]:
-    """Tool failures go back to the LLM as an error result so it can retry or answer without them."""
+async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any], skin_type: str | None,
+                     conditions: dict[str, Any] | None,
+                     exclude: Sequence[int]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the result and the chosen arguments, an alternative's conditions in place of the LLM's search arguments.
+
+    Tool failures go back to the LLM as an error result so it can retry or answer without them.
+    """
     entry: dict[str, Any] = {"name": name, "arguments": raw_arguments}
     trace["calls"].append(entry)
     try:
@@ -120,19 +136,32 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
             raise ValueError("arguments must be a JSON object")
     except ValueError as error:
         entry["error"] = f"invalid arguments: {error}"
-        return {"error": entry["error"]}
-    # Every searched product becomes a card, so the server caps the count whatever limit the LLM asked for.
-    # The skin type is the one the request chose, never the LLM's (ADR-120).
-    if name == "search_products":
-        arguments["limit"] = SEARCH_LIMIT
-        arguments.pop("skin_type", None)
-        if skin_type is not None:
-            arguments["skin_type"] = skin_type
+        return {"error": entry["error"]}, {}
+    if name == "search_products" and conditions is not None:
+        arguments = conditions
     try:
-        return await tools.call(name, arguments)
+        if name == "search_products":
+            return await search(tools, arguments, skin_type, exclude), arguments
+        return await tools.call(name, arguments), arguments
     except ToolError as error:
         entry["error"] = str(error)
-        return {"error": entry["error"]}
+        return {"error": entry["error"]}, arguments
+
+
+async def search(tools: McpTools, arguments: dict[str, Any], skin_type: str | None,
+                 exclude: Sequence[int] = ()) -> dict[str, Any]:
+    """Search as the server requires, whether the LLM, the rules or an earlier answer chose the arguments.
+
+    Every searched product becomes a card, so the server sets the count whatever limit was asked for, and the skin type
+    is the one the request chose (ADR-120). Excluded products, sold out a moment ago, are searched past to keep the
+    cards full and dropped before the LLM or the cards see them (ADR-131).
+    """
+    arguments = {**arguments, "limit": SEARCH_LIMIT + len(exclude)}
+    arguments.pop("skin_type", None)
+    if skin_type is not None:
+        arguments["skin_type"] = skin_type
+    result = await tools.call("search_products", arguments)
+    return {**result, "products": [p for p in result["products"] if p["productId"] not in exclude][:SEARCH_LIMIT]}
 
 
 def _without_images(result: dict[str, Any]) -> dict[str, Any]:

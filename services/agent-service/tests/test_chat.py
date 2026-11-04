@@ -36,6 +36,7 @@ class FakeTools:
         self.search, self.inventory = search, inventory
         self.calls = []
         self.skin_types = []
+        self.searched = []
 
     async def search_products(self, q, max_price, limit, skin_type=None):
         self.calls.append(("search_products", q, max_price, limit))
@@ -54,6 +55,7 @@ class FakeTools:
 
     async def call(self, name, arguments):
         if name == "search_products":
+            self.searched.append(arguments)
             return await self.search_products(arguments["q"], arguments.get("max_price"), arguments.get("limit", 5),
                                               arguments.get("skin_type"))
         if name == "check_inventory":
@@ -152,7 +154,7 @@ class ChatTest(unittest.TestCase):
         tools = serve(SEARCH, INVENTORY)
         body = self.chat("안녕하세요").json()
 
-        self.assertEqual(body, {"answer": "조건에 맞는 상품을 찾지 못했습니다.", "products": []})
+        self.assertEqual(body, {"answer": "조건에 맞는 상품을 찾지 못했습니다.", "products": [], "searchConditions": None})
         self.assertEqual(tools.calls, [])
 
     def test_message가_없거나_비었거나_너무_길면_400과_오류_본문을_반환한다(self):
@@ -190,6 +192,35 @@ class ChatTest(unittest.TestCase):
         for value in ("normal", "DRY", ""):
             with self.subTest(value):
                 response = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": value})
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["code"], "INVALID_CHAT_REQUEST")
+        self.assertEqual(tools.calls, [])
+
+    def test_규칙_답에는_뽑은_검색_조건이_실린다(self):
+        serve(SEARCH, INVENTORY)
+
+        self.assertEqual(self.chat().json()["searchConditions"], {"q": "수분크림", "max_price": 30000})
+
+    def test_대안은_보낸_검색_조건으로_찾고_뺀_상품_대신_더_찾아_5개를_채운다(self):
+        six = {"products": [{**SEARCH["products"][0], "productId": i} for i in range(1, 7)]}
+        tools = serve(six, None)
+        conditions = {"q": "크림", "max_price": 20000, "category": "스킨케어"}
+        body = self.client.post("/api/v1/chat", json={"message": "아무 말", "searchConditions": conditions,
+                                                      "excludeProductIds": [1]}).json()
+
+        self.assertEqual([p["productId"] for p in body["products"]], [2, 3, 4, 5, 6])
+        self.assertEqual(tools.searched, [{**conditions, "limit": 6}])
+        self.assertEqual(body["searchConditions"], conditions)
+
+    def test_대안_필드의_형식이_틀리면_400과_오류_본문을_반환한다(self):
+        tools = serve(SEARCH, INVENTORY)
+
+        for label, fields in (("뺄 상품 11개", {"excludeProductIds": list(range(11))}),
+                              ("숫자가 아닌 상품 ID", {"excludeProductIds": ["하나"]}),
+                              ("객체가 아닌 검색 조건", {"searchConditions": "수분크림"})):
+            with self.subTest(label):
+                response = self.client.post("/api/v1/chat", json={"message": MESSAGE, **fields})
 
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(response.json()["code"], "INVALID_CHAT_REQUEST")
@@ -249,6 +280,45 @@ class LlmChatTest(unittest.TestCase):
 
                 self.assertEqual(tools.skin_types, [expected])
                 self.assertEqual(self.traces()[-1]["skinType"], expected)
+
+    def test_LLM이_고른_검색_인자를_검색_조건으로_싣고_서버가_정하는_값은_뺀다(self):
+        serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products", {"q": "수분크림", "max_price": 30000, "limit": 20, "skin_type": "oily"}),
+            final("찾았어요.", {})))
+        body = self.chat().json()
+
+        self.assertEqual(body["searchConditions"], {"q": "수분크림", "max_price": 30000})
+
+    def test_검색_조건을_주면_LLM이_넣은_인자_대신_그_값으로_찾는다(self):
+        conditions = {"q": "건성 피부에 끈적이지 않는 수분크림", "max_price": 30000, "product_types": ["크림"]}
+        tools = serve(SEARCH, INVENTORY, FakeLlm(
+            tool_call("search_products", {"q": "바디로션", "category": "바디케어"}),
+            final("같은 조건으로 찾았어요.", {})))
+        body = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": "dry",
+                                                      "searchConditions": conditions}).json()
+
+        self.assertEqual(tools.searched, [{**conditions, "limit": 5, "skin_type": "dry"}])
+        self.assertEqual(body["searchConditions"], conditions)
+        self.assertEqual(self.traces()[-1]["searchConditions"], conditions)
+
+    def test_뺄_상품은_카드에도_LLM에게도_보이지_않는다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.client.post("/api/v1/chat", json={"message": MESSAGE, "excludeProductIds": [1]}).json()
+
+        self.assertEqual([p["productId"] for p in body["products"]], [2, 3])
+        self.assertEqual([p["productId"] for p in json.loads(llm.requests[-1][-1]["content"])["products"]], [2, 3])
+        self.assertEqual(tools.searched[0]["limit"], 6)
+
+    def test_LLM이_막혀_규칙_답이_되어도_대안은_보낸_검색_조건으로_찾는다(self):
+        conditions = {"q": "크림", "category": "스킨케어"}
+        tools = serve(SEARCH, INVENTORY, FakeLlm(LlmError("429")))
+        body = self.client.post("/api/v1/chat", json={"message": MESSAGE, "searchConditions": conditions,
+                                                      "excludeProductIds": [1]}).json()
+
+        self.assertEqual(body["answer"], "조건에 맞는 상품 1개를 찾았습니다.")
+        self.assertEqual(tools.searched, [{**conditions, "limit": 6}])
+        self.assertEqual(body["searchConditions"], conditions)
 
     def test_사진_주소는_카드에만_싣고_LLM에게는_넘기지_않는다(self):
         url = "https://image.msscdn.net/images/goods_img/20260930/1/1_1_500.jpg"
