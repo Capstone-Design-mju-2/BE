@@ -9,3 +9,4 @@ rootProject.name = "capstone-be"
 
 include("services:catalog-service")
 include("services:order-service")
+include("services:gateway-service")

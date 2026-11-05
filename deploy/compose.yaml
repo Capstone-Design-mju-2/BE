@@ -1,6 +1,6 @@
-# The demo path on one server (ADR-123): two PostgreSQL databases, the three services, OpenSearch for the review
-# search (ADR-130) and Caddy in front. Secrets come from deploy/.env (copy .env.example). Only Caddy publishes a port
-# to the outside; OpenSearch listens on the server's loopback for indexing.
+# The demo path on one server (ADR-123): two PostgreSQL databases, the three services behind a gateway (ADR-133),
+# OpenSearch for the review search (ADR-130) and Caddy in front. Secrets come from deploy/.env (copy .env.example).
+# Only Caddy publishes a port to the outside; OpenSearch listens on the server's loopback for indexing.
 name: capstone-deploy
 
 services:
@@ -87,6 +87,25 @@ services:
       - opensearch
     restart: unless-stopped
 
+  # Takes every /api request from Caddy and sends it to its service (ADR-133).
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/java.Dockerfile
+      args:
+        SERVICE: gateway-service
+    environment:
+      GATEWAY_SERVICE_HOST: 0.0.0.0
+      AGENT_SERVICE_URL: http://agent:8000
+      CATALOG_SERVICE_URL: http://catalog:8081
+      ORDER_SERVICE_URL: http://order:8082
+      JAVA_TOOL_OPTIONS: -Xmx256m
+    depends_on:
+      - agent
+      - catalog
+      - order
+    restart: unless-stopped
+
   opensearch:
     image: opensearchproject/opensearch:3.8.0
     environment:
@@ -125,9 +144,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      - agent
-      - catalog
-      - order
+      - gateway
     restart: unless-stopped
 
 volumes:
