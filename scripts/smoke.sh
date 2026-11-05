@@ -112,8 +112,9 @@ wait_for_http "$GATEWAY_URL/actuator/health" "gateway-service" "$GATEWAY_PID"
 uv run python scripts/smoke_mcp.py
 
 # Through the gateway (ADR-133): each route reaches its service, and /internal/* is not routed.
+# Catalog is checked with search: the list answers 400 for a category with no products, and the smoke DB has none.
 curl -fsS -H 'Content-Type: application/json' -d '{"message": "토너 추천해 줘"}' "$GATEWAY_URL/api/v1/chat" >/dev/null
-curl -fsS "$GATEWAY_URL/api/v1/products?category=104001&size=1" >/dev/null
+curl -fsS "$GATEWAY_URL/api/v1/products/search?q=toner&limit=1" >/dev/null
 curl -fsS -H 'Content-Type: application/json' -d '{"productIds": [1]}' \
     "$GATEWAY_URL/api/v1/inventories/check" >/dev/null
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GATEWAY_URL/internal/products/load")" = 404
