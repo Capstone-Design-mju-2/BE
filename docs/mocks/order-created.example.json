@@ -1,0 +1,8 @@
+{
+  "orderId": 1,
+  "totalPrice": 51800,
+  "items": [
+    { "productId": 101, "optionKey": "11", "name": "수분크림 A 50ml", "unitPrice": 12900, "quantity": 2 },
+    { "productId": 102, "optionKey": "31", "name": "쿠션 B 21호", "unitPrice": 26000, "quantity": 1 }
+  ]
+}
