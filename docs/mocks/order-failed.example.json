@@ -1,0 +1,5 @@
+{
+  "code": "INSUFFICIENT_STOCK",
+  "message": "주문할 수 없는 항목이 있습니다.",
+  "failedItem": { "productId": 101, "optionKey": "11", "requested": 5, "available": 2 }
+}

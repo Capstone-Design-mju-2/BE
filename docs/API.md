@@ -372,6 +372,8 @@ POST /api/v1/orders
 - `quantity`는 1~99 정수다. 한 요청의 항목은 최대 20개다.
 - `ordererKey`, `optionKey`, `requestId`는 100자 이하다. 범위를 벗어나면 400을 반환한다.
 - 시연 단계에서 `ordererKey`는 고정값 `"demo"`를 쓴다.
+- 브라우저에서 직접 호출할 수 있게 주문 API에만 CORS를 연다. 허용 출처는 `ORDER_CORS_ALLOWED_ORIGINS`로 정하고, 기본값은 `http://localhost:5173`, `http://127.0.0.1:5173`이다.
+- 목업 응답: [mocks/order-created.example.json](mocks/order-created.example.json)(성공), [mocks/order-failed.example.json](mocks/order-failed.example.json)(실패).
 - 취소·환불은 없다. 시연용 재고는 `make reset-inventory CONFIRM=1`로 재고 테이블을 비운 뒤 다시 적재해 되돌린다.
 
 같은 주문을 다시 보낼 때 (`requestId`, 아직 구현 전이다. 10주차, 이슈 #28)
