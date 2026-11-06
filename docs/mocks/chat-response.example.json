@@ -54,5 +54,6 @@
         "estimatedDeliveryDate": null
       }
     }
-  ]
+  ],
+  "searchConditions": { "q": "수분크림", "max_price": 30000 }
 }
