@@ -110,7 +110,7 @@ uv run --package search-mcp --extra embed python scripts/index_reviews.py
 
 `embed_reviews.py`는 벡터를 `.local/embeddings/`에 1만 개씩 저장하고, 멈췄다 다시 실행하면 끝난 묶음을 건너뛴다. `index_reviews.py`는 같은 이름의 인덱스를 지우고 다시 만든다. 리뷰 문서마다 상품명·브랜드·가격·카테고리·성분을 복사해 넣으므로, 색인한 뒤 catalog에서 바뀐 상품 정보는 다시 색인할 때까지 반영되지 않는다. 이 어긋남은 `uv run --package search-mcp --extra embed python scripts/repro_index_mismatch.py`로 재현한다. 검색 1위 상품의 catalog 가격을 잠시 올렸다가 끝나면 되돌린다. search-mcp는 시작할 때 모델을 읽어 들이는 데 약 10초가 걸린다. 스모크 테스트는 모델 없이 `scripts/fixtures/`의 지어낸 리뷰와 미리 계산한 질문 벡터로 OpenSearch 경로를 확인한다. 픽스처는 `scripts/make_search_fixture.py`로 다시 만든다.
 
-### 검색 인덱스 동기화 실험 (이중 쓰기, Outbox)
+### 검색 인덱스 동기화 실험 (이중 쓰기, Outbox, Debezium·Kafka)
 
 catalog에서 바꾼 상품 가격을 리뷰 문서에 반영하는 두 방식을 비교한다(ADR-121). 실험용 가격 변경 API `PUT /internal/products/{id}/price`가 `CATALOG_INDEX_SYNC`에 따라 다르게 동작한다.
 
@@ -125,7 +125,35 @@ CATALOG_INDEX_SYNC=outbox make run-catalog
 uv run --package indexer python scripts/bench_index_sync.py outbox --pause-opensearch 5 10 --out .local/bench/index-sync/outbox-pause.json
 ```
 
-`bench_index_sync.py`는 상품 100개의 가격을 0.2초 간격으로 바꾸고, 변경 요청부터 검색에 보이기까지 걸린 시간, 끝내 반영되지 않은 상품(유실), 두 번 이상 반영된 변경을 센다. 두 번 반영은 인덱서 기록과 함께, 상품마다 리뷰 문서 하나의 `_version` 증가분으로도 센다. 인덱서 기록은 응답을 받은 반영만 남기므로, 시간 초과된 요청이 서버에서 처리된 경우는 `_version`에만 잡힌다. `--pause-opensearch`는 OpenSearch 컨테이너를 잠시 멈추고(멈춘 동안 받은 요청이 풀린 뒤 처리될 수 있다), `--block-writes`는 리뷰 인덱스의 쓰기를 잠시 막고(그동안 쓰기는 403으로 실패한다), `--stop-indexer`는 인덱서를 잠시 내린다. outbox 모드에서는 스크립트가 인덱서를 직접 띄운다. 끝나면 같은 API로 가격을 되돌린다.
+`bench_index_sync.py`는 상품 100개의 가격을 0.2초 간격으로 바꾸고, 변경 요청부터 검색에 보이기까지 걸린 시간, 끝내 반영되지 않은 상품(유실), 두 번 이상 반영된 변경을 센다. 두 번 반영은 인덱서 기록과 함께, 상품마다 리뷰 문서 하나의 `_version` 증가분으로도 센다. 인덱서 기록은 응답을 받은 반영만 남기므로, 시간 초과된 요청이 서버에서 처리된 경우는 `_version`에만 잡힌다. `--pause-opensearch`는 OpenSearch 컨테이너를 잠시 멈추고(멈춘 동안 받은 요청이 풀린 뒤 처리될 수 있다), `--block-writes`는 리뷰 인덱스의 쓰기를 잠시 막고(그동안 쓰기는 403으로 실패한다), `--stop-indexer`는 인덱서를 잠시 내린다. outbox·kafka 모드에서는 스크립트가 인덱서를 직접 띄운다. 끝나면 같은 API로 가격을 되돌린다.
+
+Debezium·Kafka 비교(ADR-132)는 같은 `outbox` 행을 Debezium이 변경 로그에서 읽어 Kafka로 옮기고, 인덱서가 Kafka에서 받아 반영한다. catalog는 `outbox` 모드 그대로 두고, 인덱서만 `INDEXER_SOURCE=kafka`로 띄운다. Kafka와 Kafka Connect는 `cdc` 프로필이라 `docker compose up`만으로는 뜨지 않는다. catalog-db는 Debezium이 변경 로그를 읽을 수 있게 `wal_level=logical`로 뜬다.
+
+```bash
+docker compose up -d kafka connect
+uv run python scripts/register_outbox_connector.py
+CATALOG_INDEX_SYNC=outbox make run-catalog
+uv run --package indexer python scripts/bench_index_sync.py kafka --stop-connect 5 10 --out .local/bench/index-sync/kafka-stop-connect.json
+```
+
+커넥터는 등록한 뒤에 생긴 `outbox` 행만 읽는다. 그 전의 행은 폴링 인덱서가 반영했기 때문이다. 행마다 상품 ID를 키로 `outbox.event.product` 토픽에 들어가서, 한 상품의 변경은 같은 파티션에서 순서대로 온다. 인덱서는 OpenSearch에 반영한 뒤에 읽은 위치를 커밋하고, Kafka 모드에서는 `processed_at`을 찍지 않는다. 폴링 인덱서와 Kafka 인덱서를 함께 돌리면 같은 변경을 두 번 반영하므로 하나만 띄운다. `--stop-connect`는 Kafka Connect 컨테이너를 잠시 멈춘다.
+
+방식을 바꿀 때는 다른 쪽에 밀린 변경을 먼저 정리한다. 두 방식은 어디까지 반영했는지를 따로 기억한다(폴링은 `processed_at`, Kafka는 컨슈머 그룹 `indexer`의 오프셋). 그래서 Kafka 모드로 반영한 변경은 폴링 인덱서에게 처리하지 않은 행으로 남고, 폴링 모드로 반영한 변경은 Kafka에 밀려 있다. 정리하지 않으면 다음 인덱서가 옛 변경부터 다시 반영한다. Kafka 도구도 Kafka 컨테이너의 메모리 상한 안에서 돌기 때문에 힙을 작게 준다.
+
+```bash
+# 폴링 인덱서를 띄우기 전
+docker compose exec catalog-db psql -U catalog -d catalog -c "UPDATE outbox SET processed_at = now() WHERE processed_at IS NULL"
+# Kafka 인덱서를 띄우기 전
+docker compose exec -e KAFKA_HEAP_OPTS=-Xmx64m kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:29092 \
+    --group indexer --topic outbox.event.product --reset-offsets --to-latest --execute
+```
+
+실험이 끝나면 Kafka Connect와 Kafka를 지우고 복제 슬롯도 지운다. 커넥터 없이 슬롯만 남으면 catalog-db가 그 뒤의 WAL을 지우지 못하고 계속 쌓는다.
+
+```bash
+docker compose rm -sf connect kafka
+docker compose exec catalog-db psql -U catalog -d catalog -c "SELECT pg_drop_replication_slot('catalog_outbox')"
+```
 
 ## 5. 검증
 

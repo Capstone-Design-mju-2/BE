@@ -2,10 +2,13 @@
 delay from the change request to search.
 
 catalog-service must run in the mode under test, for example CATALOG_INDEX_SYNC=outbox make run-catalog. In outbox
-mode this script starts the indexer itself, so it can also stop it for a while.
+and kafka modes this script starts the indexer itself, so it can also stop it for a while. kafka mode is the outbox
+carried by Debezium (ADR-132): catalog-service runs with CATALOG_INDEX_SYNC=outbox, and `docker compose up -d kafka
+connect` plus scripts/register_outbox_connector.py come first.
 
     uv run --package indexer python scripts/bench_index_sync.py dual-write --pause-opensearch 5 10
     uv run --package indexer python scripts/bench_index_sync.py outbox --stop-indexer 5 10
+    uv run --package indexer python scripts/bench_index_sync.py kafka --stop-connect 5 10
 
 Every changed price is put back through the same API at the end; a product the index still disagrees on afterwards
 is rewritten from the DB, and the result says how many.
@@ -133,10 +136,10 @@ def applications(before: dict[int, int], after: dict[int, int]) -> dict:
 
 
 class Indexer:
-    """The outbox poller as a child process the experiment can stop and start again."""
+    """The indexer as a child process the experiment can stop and start again."""
 
-    def __init__(self, apply_log: Path) -> None:
-        self.env = {**os.environ, "INDEXER_APPLY_LOG": str(apply_log)}
+    def __init__(self, apply_log: Path, source: str) -> None:
+        self.env = {**os.environ, "INDEXER_APPLY_LOG": str(apply_log), "INDEXER_SOURCE": source}
         self.process: subprocess.Popen | None = None
 
     def start(self) -> None:
@@ -171,6 +174,10 @@ def run_once(conn, mode, changes, totals, args, indexer, label) -> dict:
         when, length = args.block_writes
         faults.append(at(when, lambda: block_writes(True)))
         faults.append(at(when + length, lambda: block_writes(False)))
+    if args.stop_connect:
+        when, length = args.stop_connect
+        faults.append(at(when, lambda: compose("stop", "connect")))
+        faults.append(at(when + length, lambda: compose("start", "connect")))
     watcher.start()
     sent = change_prices(changes, args.interval)
     for fault in faults:
@@ -217,20 +224,21 @@ def repeated(apply_log: Path, first_event: int) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["dual-write", "outbox"])
+    parser.add_argument("mode", choices=["dual-write", "outbox", "kafka"])
     parser.add_argument("--products", type=int, default=100)
     parser.add_argument("--interval", type=float, default=0.2, help="seconds between price changes")
     parser.add_argument("--settle", type=float, default=30.0, help="seconds to keep watching after the last change")
     parser.add_argument("--pause-opensearch", type=float, nargs=2, metavar=("AT", "FOR"))
     parser.add_argument("--stop-indexer", type=float, nargs=2, metavar=("AT", "FOR"))
     parser.add_argument("--block-writes", type=float, nargs=2, metavar=("AT", "FOR"))
+    parser.add_argument("--stop-connect", type=float, nargs=2, metavar=("AT", "FOR"))
     parser.add_argument("--seed", default="1031")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     apply_log = args.out.with_suffix(".apply.jsonl")
-    indexer = Indexer(apply_log) if args.mode == "outbox" else None
+    indexer = Indexer(apply_log, args.mode) if args.mode in ("outbox", "kafka") else None
     with psycopg.connect(CATALOG_DB, autocommit=True) as conn:
         original = dict(sample(conn, args.products, args.seed))
         with httpx.Client(timeout=10.0) as client:
@@ -250,7 +258,7 @@ def main() -> None:
                 middle = versions(client, docs)
             changed["serverApplications"] = applications(before, middle)
             restore_args = argparse.Namespace(**{**vars(args), "pause_opensearch": None, "stop_indexer": None,
-                                                 "block_writes": None})
+                                                 "block_writes": None, "stop_connect": None})
             restored = run_once(conn, args.mode, list(original.items()), totals, restore_args, indexer, "restore")
             with httpx.Client(timeout=10.0) as client:
                 restored["serverApplications"] = applications(middle, versions(client, docs))
@@ -273,7 +281,7 @@ def main() -> None:
                             ).raise_for_status()
     result = {"mode": args.mode, "products": len(original), "reviewDocuments": sum(totals[i] for i in original),
               "interval": args.interval, "pauseOpenSearch": args.pause_opensearch, "stopIndexer": args.stop_indexer,
-              "blockWrites": args.block_writes,
+              "blockWrites": args.block_writes, "stopConnect": args.stop_connect,
               "dbPricesRestored": all(db[i] == p for i, p in original.items()), "indexRepairedAfterRestore": repaired,
               "change": changed, "restore": restored}
     args.out.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
