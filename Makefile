@@ -5,7 +5,7 @@ include .env
 export
 endif
 
-.PHONY: bootstrap dependencies-update build check smoke infra-up infra-down infra-reset reset-inventory run-catalog run-order run-agent run-search-mcp run-inventory-mcp run-indexer
+.PHONY: bootstrap dependencies-update build check smoke infra-up infra-down infra-reset reset-inventory run-catalog run-order run-gateway run-agent run-search-mcp run-inventory-mcp run-indexer
 
 bootstrap:
 	./gradlew --version
@@ -52,6 +52,9 @@ run-catalog:
 
 run-order:
 	./gradlew :services:order-service:bootRun
+
+run-gateway:
+	./gradlew :services:gateway-service:bootRun
 
 run-agent:
 	uv run --package agent-service agent-service

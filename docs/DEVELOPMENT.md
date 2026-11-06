@@ -31,6 +31,7 @@ make smoke
 | 구성요소 | 포트 |
 |---|---:|
 | agent-service | 8000 |
+| gateway-service | 8080 |
 | catalog-service | 8081 |
 | order-service | 8082 |
 | catalog-db | 5433 |
@@ -52,7 +53,10 @@ make infra-up
 make run-catalog
 make run-order
 make run-agent
+make run-gateway
 ```
+
+화면은 gateway-service(8080) 한 주소로 부른다(ADR-133). gateway는 `/api/v1/chat`을 agent로, `/api/v1/products/**`를 catalog로, `/api/v1/inventories/**`와 `/api/v1/orders/**`를 order로 보내고, `/internal/**`과 각 서비스의 actuator는 넘기지 않는다. 요청마다 `X-Request-Id`를 붙여 서비스와 응답에 같이 주고, gateway 로그에 요청 ID·경로·상태·걸린 시간을 한 줄씩 남긴다. 서비스에 닿지 못하거나 시간 제한(채팅 75초, 나머지 10초)을 넘기면 503 `SERVICE_UNAVAILABLE`로 바로 답한다. 최근 10번 중 절반 이상이 그렇게 실패하면(최소 5번) 10초 동안 그 서비스를 부르지 않고 같은 503을 준다. 서비스가 직접 보낸 오류 응답은 그대로 통과한다.
 
 MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 서버 프로세스가 죽으면 다음 호출이 세션을 다시 열고 한 번 재시도한다(ADR-69). 호출이 35초 안에 끝나지 않아도 같은 방식으로 세션을 다시 연다(도구가 catalog·order·OpenSearch를 부르는 HTTP 제한 30초보다 커야 느리지만 정상인 서버를 재시작하지 않는다). 질문 하나의 LLM 호출 전체는 `LLM_TIMEOUT_SECONDS`(기본 60초) 안에 끝나야 하고, 넘으면 LLM 없는 규칙 방식으로 답한다. 도구만 단독으로 확인하려면 다음처럼 실행한다.
 
@@ -171,7 +175,7 @@ make smoke
 
 스모크는 프로세스와 컨테이너를 항상 정리하되 DB volume은 보존한다.
 
-개발용 서비스가 8081, 8082, 8000에서 이미 떠 있으면 스모크는 옛 빌드를 검사하게 되므로 시작 전에 중단한다. 먼저 그 서비스를 내려야 한다. catalog-service와 order-service는 DB에 코드가 모르는 마이그레이션이 적용돼 있으면 기동을 거부한다(코드보다 앞선 스키마에 옛 빌드가 쓰기를 시도하는 사고를 막으려는 것이다).
+개발용 서비스가 8081, 8082, 8000, 8080에서 이미 떠 있으면 스모크는 옛 빌드를 검사하게 되므로 시작 전에 중단한다. 먼저 그 서비스를 내려야 한다. catalog-service와 order-service는 DB에 코드가 모르는 마이그레이션이 적용돼 있으면 기동을 거부한다(코드보다 앞선 스키마에 옛 빌드가 쓰기를 시도하는 사고를 막으려는 것이다).
 
 ## 6. 의존성 갱신
 
@@ -199,13 +203,13 @@ make infra-reset CONFIRM=1
 
 ## 9. 서버 배포 (시연 경로)
 
-시연 경로(catalog·order·agent와 DB 두 개)와 리뷰 검색용 OpenSearch를 서버 한 대에 Docker Compose로 올린다(ADR-123, ADR-130). OpenSearch와 질문 임베딩 모델(약 2.3GB)이 들어가도록 서버는 8GB(m7i-flex.large)다. 서버에는 Docker만 있으면 되고, 색인할 때만 numpy가 더 필요하다. 채팅은 OpenSearch로 찾는다. `deploy/.env`에 `SEARCH_BACKEND=catalog`를 넣고 agent를 다시 띄우면 DB 검색으로 돌아간다. 포트는 Caddy만 열고, Caddy가 경로별로 나눠 넘기며 팀 계정으로 막는다. `/internal/*`(적재·가격 변경 API)와 actuator는 밖에서 404다.
+시연 경로(catalog·order·agent와 DB 두 개)와 리뷰 검색용 OpenSearch를 서버 한 대에 Docker Compose로 올린다(ADR-123, ADR-130). OpenSearch와 질문 임베딩 모델(약 2.3GB)이 들어가도록 서버는 8GB(m7i-flex.large)다. 서버에는 Docker만 있으면 되고, 색인할 때만 numpy가 더 필요하다. 채팅은 OpenSearch로 찾는다. `deploy/.env`에 `SEARCH_BACKEND=catalog`를 넣고 agent를 다시 띄우면 DB 검색으로 돌아간다. 포트는 Caddy만 연다. Caddy는 팀 계정으로 막고, `/api/*`를 gateway-service로 넘긴다(ADR-133). gateway가 4절의 규칙대로 서비스별로 나눈다. `/internal/*`(적재·가격 변경 API)와 actuator는 밖에서 404다.
 
-| 경로 | 서비스 |
+| 경로 | 받는 곳 |
 |---|---|
-| `/api/v1/chat` | agent-service |
-| `/api/v1/products...` | catalog-service |
-| `/api/v1/inventories...`, `/api/v1/orders...` | order-service |
+| `/api/v1/chat` | gateway를 거쳐 agent-service |
+| `/api/v1/products...` | gateway를 거쳐 catalog-service |
+| `/api/v1/inventories...`, `/api/v1/orders...` | gateway를 거쳐 order-service |
 | 그 밖의 GET | FE 빌드(서버 `/srv/peaupick-fe`) |
 
 Caddy는 `SITE_ADDRESS` 이름으로 HTTPS를 받고, 그 이름의 인증서를 Let's Encrypt에서 스스로 받는다(ADR-126). 서버에서는 공인 IP의 점을 대시로 바꾸고 `.sslip.io`를 붙인 이름을 쓴다. IP로 들어오는 요청을 포함해 HTTP 요청은 이 HTTPS 주소로 넘긴다. 보안 그룹은 80번(인증서 발급과 넘기기)과 443번을 연다.

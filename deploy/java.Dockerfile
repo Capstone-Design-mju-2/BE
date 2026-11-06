@@ -1,4 +1,4 @@
-# One image per Spring service: build with --build-arg SERVICE=catalog-service or order-service.
+# One image per Spring service: build with --build-arg SERVICE=catalog-service, order-service or gateway-service.
 FROM eclipse-temurin:21.0.10_7-jdk AS build
 WORKDIR /src
 COPY gradlew settings.gradle.kts build.gradle.kts ./
