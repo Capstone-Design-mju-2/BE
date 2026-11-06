@@ -76,7 +76,7 @@ async def run(variant: str, questions: list[dict], judgments: dict, tools: McpTo
         for q in questions:
             recording = Recording(tools, variant == "filter")
             try:
-                _, products, _, _ = await agent.run_agent(q["text"], llm, recording)
+                _, products, _, _, _ = await agent.run_agent(q["text"], llm, recording)
                 error = None
             except LlmError as e:
                 products, error = [], repr(e)[:200]

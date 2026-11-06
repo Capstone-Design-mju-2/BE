@@ -146,15 +146,6 @@ class McpTools:
     async def _stop(self) -> None:
         await asyncio.gather(self._search.stop(), self._inventory.stop())
 
-    async def search_products(self, q: str, max_price: int | None, limit: int,
-                              skin_type: str | None = None) -> dict[str, Any]:
-        arguments: dict[str, Any] = {"q": q, "limit": limit}
-        if max_price is not None:
-            arguments["max_price"] = max_price
-        if skin_type is not None:
-            arguments["skin_type"] = skin_type
-        return await self._search.call("search_products", arguments)
-
     async def check_inventory(self, product_ids: list[int]) -> dict[str, Any]:
         return await self._inventory.call("check_inventory", {"product_ids": product_ids})
 
