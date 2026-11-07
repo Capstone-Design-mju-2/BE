@@ -16,8 +16,12 @@ from agent_service.tools import McpTools, ToolError
 
 MAX_ROUNDS = 5
 SEARCH_LIMIT = 5
+# One search and one corrected search (ADR-134); each more search costs another LLM round within the chat's limit.
+MAX_SEARCHES = 2
 # Search arguments the server sets itself, so they stay out of the conditions an alternative sends back (ADR-131).
 SERVER_ARGUMENTS = {"limit", "skin_type"}
+# Shown to the LLM to judge a search; the card contract has no such field (ADR-134).
+SEARCH_ONLY_FIELDS = {"similarity"}
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
@@ -27,7 +31,11 @@ KEYWORD_QUERY = """- search_products로 상품을 찾는다. q에는 띄어쓰�
 - 질문에 상품 유형(토너, 수분크림, 세럼, 선크림 등)이 있으면 q에는 그 유형을 넣는다. 효과(진정, 보습 등)는 상품 유형이 없을 때만 q에 넣는다."""
 # Vector search compares q with whole reviews, so what a review would say about the product belongs in q (ADR-98).
 SEMANTIC_QUERY = """- search_products로 상품을 찾는다. q에는 질문이 찾는 상품 유형과 리뷰에 나올 만한 조건(피부 타입, 사용감, 효과 등)을 질문에 쓰인 말로 한 문장에 넣는다. 가격·카테고리·브랜드·성분 조건은 q에 넣지 않고 각 인자에 넣는다. 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
-- 질문에 상품 유형이 있으면 product_types에 그 유형을 상품명에 쓰이는 짧은 말로 넣고, 같은 유형을 부르는 다른 말이 있으면 함께 넣는다. 꾸미는 말은 뺀다(수분크림이면 크림)."""
+- 질문에 상품 유형이 있으면 product_types에 그 유형을 상품명에 쓰이는 짧은 말로 넣고, 같은 유형을 부르는 다른 말이 있으면 함께 넣는다. 꾸미는 말은 뺀다(수분크림이면 크림).
+- 검색 결과를 받으면 질문에 맞는지 먼저 본다. 상품이 3개보다 적거나, 근거 발췌가 질문의 조건을 말하는 상품이 절반이 안 되면 q나 product_types를 다른 말로 고쳐 search_products를 한 번 더 부른다. 가격·카테고리·브랜드·성분 조건은 바꾸지 않는다. similarity(0~1)는 상품마다 가장 가까운 리뷰가 q와 얼마나 가까운지 보여 주는 참고 값이다. 다시 검색은 한 번까지이고, 카드는 마지막 검색 결과로 만든다."""
+# An alternative searches the first answer's conditions whatever the LLM asks for (ADR-131), so a second search
+# would only repeat the first.
+PINNED_CONDITIONS = "\n- 이번 요청은 검색 조건이 정해져 있어 다시 검색해도 결과가 같다. search_products는 한 번만 부른다."
 SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
 """ + (SEMANTIC_QUERY if settings.search_backend == "opensearch" else KEYWORD_QUERY) + """
 - 질문이 찾는 상품의 카테고리가 분명하면 category에 그 카테고리 이름을, 브랜드를 말하면 brand에 브랜드 이름을 넣는다. 분명하지 않으면 비워 둔다.
@@ -75,8 +83,8 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
 async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
                 deadline: float, conditions: dict[str, Any] | None, exclude: Sequence[int]
                 ) -> tuple[str, list[dict], dict[int, dict], dict[int, str], dict[str, Any] | None]:
-    messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT},
-                                      {"role": "user", "content": message}]
+    system = SYSTEM_PROMPT + (PINNED_CONDITIONS if conditions is not None else "")
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": message}]
     products: list[dict] | None = None
     searched = conditions
     inventories: dict[int, dict] = {}
@@ -130,6 +138,9 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
     """
     entry: dict[str, Any] = {"name": name, "arguments": raw_arguments}
     trace["calls"].append(entry)
+    if name == "search_products" and sum(c["name"] == name for c in trace["calls"]) > MAX_SEARCHES:
+        entry["error"] = f"search_products는 대화 하나에 {MAX_SEARCHES}번까지만 부를 수 있다"
+        return {"error": entry["error"]}, {}
     try:
         arguments = json.loads(raw_arguments or "{}")
         if not isinstance(arguments, dict):
@@ -216,7 +227,8 @@ def cards(products: list[dict], inventories: dict[int, dict], reasons: dict[int,
             continue
         # The contract never allows a reason without evidence to back it.
         reason = reasons.get(product["productId"]) if product["evidence"] else None
-        result.append({**product, "reason": reason, "inventory": inventory})
+        card = {k: v for k, v in product.items() if k not in SEARCH_ONLY_FIELDS}
+        result.append({**card, "reason": reason, "inventory": inventory})
     return result
 
 

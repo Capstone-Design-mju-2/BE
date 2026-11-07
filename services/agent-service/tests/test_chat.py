@@ -331,6 +331,36 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual(llm.requests[-1][-1]["role"], "tool")
         self.assertNotIn("msscdn", llm.requests[-1][-1]["content"])
 
+    def test_similarity는_LLM에게만_넘기고_카드에는_싣지_않는다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        serve({"products": [{**SEARCH["products"][0], "similarity": 0.71}]}, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertNotIn("similarity", body["products"][0])
+        self.assertEqual(json.loads(llm.requests[-1][-1]["content"])["products"][0]["similarity"], 0.71)
+
+    def test_검색은_두_번까지_부르고_세_번째는_오류로_돌려준다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("search_products", {"q": "보습 크림"}),
+                      tool_call("search_products", {"q": "크림"}),
+                      final("찾았어요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual([call[1] for call in tools.calls], ["수분크림", "보습 크림"])
+        self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
+        self.assertEqual(len(body["products"]), 3)
+
+    def test_검색_조건이_정해진_요청에는_한_번만_검색하라고_알린다(self):
+        conditions = {"q": "건성 피부에 끈적이지 않는 수분크림"}
+        for label, extra, expected in (("조건 있음", {"searchConditions": conditions}, True), ("조건 없음", {}, False)):
+            with self.subTest(label):
+                llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+                serve(SEARCH, INVENTORY, llm)
+                self.client.post("/api/v1/chat", json={"message": MESSAGE, **extra})
+
+                self.assertEqual(agent.PINNED_CONDITIONS in llm.requests[0][0]["content"], expected)
+
     def test_검색_결과에_없는_상품의_reason은_버린다(self):
         serve(SEARCH, INVENTORY, FakeLlm(
             tool_call("search_products", {"q": "수분크림"}),
