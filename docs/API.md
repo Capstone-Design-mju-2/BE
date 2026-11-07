@@ -33,7 +33,7 @@ POST /api/v1/chat
 
 `message`는 1자 이상 500자 이하다. 벗어나거나 없으면 400과 `{ "code": "INVALID_CHAT_REQUEST", "message": "..." }`를 반환한다.
 
-`skinType`은 선택이다(FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르거나 순서를 바꾸지는 않는다. `null`은 주지 않은 것과 같고, 다른 값이면 400 `INVALID_CHAT_REQUEST`다. LLM이 정하지 않고 agent가 요청 값을 그대로 검색에 넘긴다. 검색 경로가 OpenSearch(`SEARCH_BACKEND=opensearch`)이면 인덱스에 피부 타입이 없어 반영되지 않는다.
+`skinType`은 선택이다(FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르거나 순서를 바꾸지는 않는다. `null`은 주지 않은 것과 같고, 다른 값이면 400 `INVALID_CHAT_REQUEST`다. LLM이 정하지 않고 agent가 요청 값을 그대로 검색에 넘긴다. 검색 경로가 OpenSearch(`SEARCH_BACKEND=opensearch`)이면 상품마다 그 피부 타입 작성자의 리뷰 중 질문과 가장 가까운 리뷰를 먼저 고른다.
 
 ```json
 { "message": "끈적이지 않는 수분크림 추천해 줘", "skinType": "dry" }
@@ -79,7 +79,7 @@ POST /api/v1/chat
 
 `reason`은 LLM이 `evidence`를 읽고 쓴다. `evidence` 없이 생성하지 않는다. 생성 문장과 원본 리뷰를 함께 남겨야 오작동률을 측정할 수 있다.
 
-`evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다. 검색 경로가 OpenSearch이면 이 필드가 없다.
+`evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다.
 
 `imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 두 필드가 없다.
 

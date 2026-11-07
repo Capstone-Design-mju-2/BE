@@ -36,6 +36,7 @@ def mapping(compression: str) -> dict:
                 "product_id": {"type": "long"},
                 "content": {"type": "text", "index": False},
                 "grade": {"type": "byte"},
+                "skin_type": {"type": "keyword"},
                 "name": {"type": "text", "index": False},
                 "brand": {"type": "keyword"},
                 "price": {"type": "integer"},
@@ -50,12 +51,12 @@ def mapping(compression: str) -> dict:
 
 def document(review_id: int, review: tuple, product: dict, ingredients: list[str], vector: list[float]) -> dict:
     """
-    >>> document(7, (3, "촉촉해요", 5), {"name": "크림", "brand": "A", "price": 9000, "category": "104001"}, [], [0.5])
-    {'review_id': 7, 'product_id': 3, 'content': '촉촉해요', 'grade': 5, 'name': '크림', 'brand': 'A', 'price': 9000, 'category': '104001', 'ingredients': [], 'embedding': [0.5]}
+    >>> document(7, (3, "촉촉해요", 5, "dry"), {"name": "크림", "brand": "A", "price": 9000, "category": "104001"}, [], [0.5])
+    {'review_id': 7, 'product_id': 3, 'content': '촉촉해요', 'grade': 5, 'skin_type': 'dry', 'name': '크림', 'brand': 'A', 'price': 9000, 'category': '104001', 'ingredients': [], 'embedding': [0.5]}
     """
-    product_id, content, grade = review
-    return {"review_id": review_id, "product_id": product_id, "content": content, "grade": grade, **product,
-            "ingredients": ingredients, "embedding": vector}
+    product_id, content, grade, skin_type = review
+    return {"review_id": review_id, "product_id": product_id, "content": content, "grade": grade,
+            "skin_type": skin_type, **product, "ingredients": ingredients, "embedding": vector}
 
 
 def request(method: str, path: str, body: dict | str | None = None) -> dict:
@@ -90,8 +91,10 @@ def main() -> int:
     ingredients: dict[int, list[str]] = defaultdict(list)
     for product_id, name in catalog("SELECT product_id, name FROM product_ingredients"):
         ingredients[int(product_id)].append(name)
-    reviews = {int(i): (int(product_id), content, int(grade))
-               for i, product_id, content, grade in catalog("SELECT id, product_id, content, grade FROM reviews")}
+    # CSV writes NULL as an empty field; a third of the writers chose no skin type (ADR-120).
+    reviews = {int(i): (int(product_id), content, int(grade), skin_type or None)
+               for i, product_id, content, grade, skin_type in
+               catalog("SELECT id, product_id, content, grade, skin_type FROM reviews")}
     chunks = sorted(EMBEDDINGS.glob("[0-9]" * 7 + ".npz"))
     print(f"{len(products)} products, {len(reviews)} reviews, {len(chunks)} vector chunks", flush=True)
 

@@ -105,7 +105,8 @@ async def search_products(q: str, max_price: int | None = None, category: Catego
 async def search_reviews(q: str, max_price: int | None = None, category: Category | None = None,
                          brand: str | None = None,
                          exclude_ingredients: list[Ingredient] | Ingredient | None = None,
-                         product_types: list[str] | str | None = None, limit: int = 5) -> dict[str, Any]:
+                         product_types: list[str] | str | None = None, limit: int = 5,
+                         skin_type: SkinType | None = None) -> dict[str, Any]:
     """Search products whose reviews match the meaning of q, one sentence of the product type and the conditions.
 
     product_types keeps products whose name contains one of them: the type as product names write it, without
@@ -129,10 +130,12 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
         # Same rule as the catalog: a product with no known ingredient list cannot be shown to lack one.
         filters.append({"exists": {"field": "ingredients"}})
         must_not.append({"terms": {"ingredients": excluded}})
-    knn: dict[str, Any] = {"vector": embed(q), "k": CANDIDATES}
+    vector = embed(q)
+    knn: dict[str, Any] = {"vector": vector, "k": CANDIDATES}
     if filters or must_not:
         knn["filter"] = {"bool": {"filter": filters, "must_not": must_not}}
-    body = {"size": CANDIDATES, "_source": ["review_id", "product_id", "content", "grade", "name", "brand", "price"],
+    body = {"size": CANDIDATES,
+            "_source": ["review_id", "product_id", "content", "grade", "skin_type", "name", "brand", "price"],
             "query": {"knn": {"embedding": knn}}}
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
@@ -144,11 +147,31 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     types = [t for t in product_types or [] if t.strip()]
     if types:
         reviews = [r for r in reviews if has_type(r["name"], types)]
-    return {"products": group_by_product(reviews, limit)}
+    products = group_by_product(reviews, limit)
+    # skin_type is left out of the docstring the LLM reads: the agent fills it from the chat request (ADR-120, ADR-134).
+    if skin_type is not None and products:
+        found = await closest_of_skin_type(vector, [p["productId"] for p in products], skin_type)
+        products = [with_skin_type(product, closest) for product, closest in zip(products, found)]
+    return {"products": products}
 
 
-# Each backend exposes only the arguments it honours; product_types means nothing to the catalog search. The review
-# index has no skin type yet (ADR-120), so search_reviews takes no skin_type and the SDK drops the one the agent sends.
+async def closest_of_skin_type(vector: list[float], product_ids: list[int], skin_type: str) -> list[list[dict]]:
+    """Each product's two reviews closest to q among those by writers of skin_type, in one request."""
+    lines = []
+    for product_id in product_ids:
+        knn = {"vector": vector, "k": 2, "filter": {"bool": {"filter": [
+            {"term": {"product_id": product_id}}, {"term": {"skin_type": skin_type}}]}}}
+        lines += [json.dumps({"index": OPENSEARCH_INDEX}),
+                  json.dumps({"size": 2, "_source": ["review_id", "content", "grade", "skin_type"],
+                              "query": {"knn": {"embedding": knn}}})]
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(f"{OPENSEARCH_URL}/_msearch", content="\n".join(lines) + "\n",
+                                     headers={"Content-Type": "application/x-ndjson"})
+        response.raise_for_status()
+    return [[hit["_source"] for hit in result["hits"]["hits"]] for result in response.json()["responses"]]
+
+
+# Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
 server.tool(name="search_products")(search_reviews if SEARCH_BACKEND == "opensearch" else search_products)
 
 
@@ -190,10 +213,28 @@ def group_by_product(reviews: list[dict], limit: int) -> list[dict]:
                 "productId": review["product_id"], "name": review["name"], "brand": review["brand"],
                 "price": review["price"], "evidence": []}
         if len(product["evidence"]) < 2:
-            product["evidence"].append({"reviewId": review["review_id"], "rating": review["grade"],
-                                        "excerpt": excerpt(review["content"])})
+            product["evidence"].append(evidence(review))
     # sorted is stable, so products with equal counts keep the order of their closest review.
     return sorted(products.values(), key=lambda p: -counts[p["productId"]])[:limit]
+
+
+def with_skin_type(product: dict, found: list[dict]) -> dict:
+    """Put the product's reviews closest to q among those by writers of the asked skin type ahead of its evidence, as
+    the catalog does (ADR-120). The fetched reviews alone held one for only half the products (ADR-134).
+
+    >>> product = {"productId": 1, "evidence": [{"reviewId": 1, "skinType": None}, {"reviewId": 2, "skinType": "dry"}]}
+    >>> found = [{"review_id": 2, "content": "b", "grade": 5, "skin_type": "dry"}]
+    >>> [(e["reviewId"], e["skinType"]) for e in with_skin_type(product, found)["evidence"]]
+    [(2, 'dry'), (1, None)]
+    """
+    picked = [evidence(review) for review in found]
+    ids = {e["reviewId"] for e in picked}
+    return {**product, "evidence": (picked + [e for e in product["evidence"] if e["reviewId"] not in ids])[:2]}
+
+
+def evidence(review: dict) -> dict:
+    return {"reviewId": review["review_id"], "rating": review["grade"], "excerpt": excerpt(review["content"]),
+            "skinType": review.get("skin_type")}
 
 
 def excerpt(content: str) -> str:
