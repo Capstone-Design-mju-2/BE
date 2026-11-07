@@ -34,6 +34,7 @@ class GatewayRoutingTest {
     /** Stands in for catalog: notes the request id it got; /slow answers after 3 s, /busy with its own 503. */
     static HttpServer catalog;
     static final AtomicReference<String> seenRequestId = new AtomicReference<>();
+    static final AtomicReference<String> seenPath = new AtomicReference<>();
 
     @Autowired
     WebTestClient client;
@@ -48,6 +49,7 @@ class GatewayRoutingTest {
         catalog.createContext("/", exchange -> {
             seenRequestId.set(exchange.getRequestHeaders().getFirst("X-Request-Id"));
             String path = exchange.getRequestURI().getPath();
+            seenPath.set(path);
             if (path.endsWith("/slow")) {
                 try {
                     Thread.sleep(3000);
@@ -75,6 +77,7 @@ class GatewayRoutingTest {
     @DynamicPropertySource
     static void services(DynamicPropertyRegistry registry) throws IOException {
         registry.add("CATALOG_SERVICE_URL", () -> "http://127.0.0.1:" + catalog.getAddress().getPort());
+        registry.add("AGENT_SERVICE_URL", () -> "http://127.0.0.1:" + catalog.getAddress().getPort());
         // Nothing listens there, so every call on the order route fails to connect.
         try (ServerSocket socket = new ServerSocket(0)) {
             int unused = socket.getLocalPort();
@@ -89,6 +92,13 @@ class GatewayRoutingTest {
                 .returnResult(String.class).getResponseHeaders().getFirst("X-Request-Id");
 
         assertThat(id).isNotBlank().isEqualTo(seenRequestId.get());
+    }
+
+    @Test
+    void 피부_분석_요청도_agent로_넘긴다() {
+        client.post().uri("/api/v1/profile/insights").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}").exchange().expectStatus().isOk();
+        assertThat(seenPath.get()).isEqualTo("/api/v1/profile/insights");
     }
 
     @Test

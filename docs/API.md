@@ -112,6 +112,7 @@ POST /api/v1/chat
 ### 선택적 피부 정보 분석 API (마이페이지)
 
 `POST /api/v1/profile/insights`는 사용자가 분석 버튼을 누를 때만 호출한다. BE는 요청을 저장하지 않는다. 인증·계정별 상담 조회 API는 아직 없다. `conversations`는 최대 20건이며 항목은 `id`(80자 이하), `question`(1~500자), `answer`(1~2000자)다. `skinNotes`는 500자 이하다.
+Gateway는 이 경로를 agent-service로 넘긴다.
 
 ```json
 {
