@@ -13,7 +13,7 @@ spring:
             - id: chat
               uri: ${AGENT_SERVICE_URL:http://127.0.0.1:8000}
               predicates:
-                - Path=/api/v1/chat
+                - Path=/api/v1/chat,/api/v1/profile/insights
               filters:
                 - name: CircuitBreaker
                   args:

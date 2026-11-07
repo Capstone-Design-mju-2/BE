@@ -9,6 +9,19 @@ from agent_service.llm import Llm, LlmError
 
 
 class LlmTest(unittest.TestCase):
+    def test_도구_없는_분석_호출에는_빈_tools_필드를_보내지_않는다(self):
+        captured = {}
+
+        async def reply(*args, **kwargs):
+            captured.update(kwargs["json"])
+            return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}],
+                                             "usage": {}}, request=httpx.Request("POST", "http://llm.invalid/v1/chat/completions"))
+
+        llm = Llm("http://llm.invalid/v1", "key", "model", timeout=1)
+        with mock.patch.object(httpx.AsyncClient, "post", reply):
+            asyncio.run(llm.complete([{"role": "user", "content": "hi"}], []))
+        self.assertNotIn("tools", captured)
+
     def test_전체_호출이_시간_제한을_넘기면_LlmError다(self):
         async def never_finishes(*args, **kwargs):
             await asyncio.sleep(10)

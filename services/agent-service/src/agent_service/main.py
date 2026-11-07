@@ -13,6 +13,7 @@ from agent_service.agent import cards, inventory_by_id, run_agent, search
 from agent_service.config import settings
 from agent_service.extract import extract
 from agent_service.llm import Llm, LlmError
+from agent_service.profile import ProfileRequest, analyze_profile
 from agent_service.tools import McpTools, ToolError
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,9 @@ class ChatRequest(BaseModel):
 
 @app.exception_handler(RequestValidationError)
 async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
+    if request.url.path == "/api/v1/profile/insights":
+        return JSONResponse(status_code=400,
+                            content={"code": "INVALID_PROFILE_REQUEST", "message": "피부 분석 요청 형식이 올바르지 않습니다."})
     return JSONResponse(status_code=400,
                         content={"code": "INVALID_CHAT_REQUEST",
                                  "message": f"message는 1자 이상 {MAX_MESSAGE_LENGTH}자 이하, "
@@ -68,6 +72,19 @@ def get_fallback_llm() -> Llm | None:
         return None
     return Llm(settings.llm_fallback_base_url, settings.llm_fallback_api_key, settings.llm_fallback_model,
                settings.llm_timeout_seconds)
+
+
+@app.post("/api/v1/profile/insights", tags=["profile"])
+async def profile_insights(request: ProfileRequest, llm: Llm | None = Depends(get_llm)):
+    if llm is None:
+        return JSONResponse(status_code=503,
+                            content={"code": "PROFILE_ANALYSIS_UNAVAILABLE", "message": "AI 피부 분석을 사용할 수 없습니다."})
+    try:
+        return await analyze_profile(request, llm)
+    except LlmError:
+        logger.warning("Profile analysis failed", exc_info=True)
+        return JSONResponse(status_code=503,
+                            content={"code": "PROFILE_ANALYSIS_UNAVAILABLE", "message": "AI 피부 분석에 실패했습니다. 다시 시도해 주세요."})
 
 
 @app.post("/api/v1/chat", tags=["chat"])
