@@ -115,6 +115,7 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     category keeps products of one category, given by its name.
     brand keeps one brand, matched exactly by its Korean name.
     exclude_ingredients drops products containing any of them, and products whose ingredient list is unknown.
+    Each product's similarity, from 0 to 1, is how close its closest review is to q.
     """
     filters: list[dict] = []
     if max_price is not None:
@@ -140,7 +141,7 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
         response.raise_for_status()
-    reviews = [hit["_source"] for hit in response.json()["hits"]["hits"]]
+    reviews = [{**hit["_source"], "similarity": similarity(hit["_score"])} for hit in response.json()["hits"]["hits"]]
     # A review can describe the asked conditions for a product of another type, a mist for a cream (ADR-115).
     if isinstance(product_types, str):
         product_types = [product_types]
@@ -182,6 +183,16 @@ def excluded_names(exclude_ingredients: list[str] | str | None) -> list[str]:
     return [name for i in exclude_ingredients or [] for name in INGREDIENT_NAMES[i]]
 
 
+def similarity(score: float) -> float:
+    """The cosine of q and a review: OpenSearch scores an inner product p as 1 + p, or 1 / (1 - p) below zero, and
+    the vectors are normalized.
+
+    >>> similarity(1.7082), similarity(0.8)
+    (0.708, -0.25)
+    """
+    return round(score - 1 if score >= 1 else 1 - 1 / score, 3)
+
+
 def has_type(name: str, types: list[str]) -> bool:
     """Product names space their types freely, so spaces are ignored on both sides.
 
@@ -211,7 +222,7 @@ def group_by_product(reviews: list[dict], limit: int) -> list[dict]:
         if product is None:
             product = products[review["product_id"]] = {
                 "productId": review["product_id"], "name": review["name"], "brand": review["brand"],
-                "price": review["price"], "evidence": []}
+                "price": review["price"], "similarity": review.get("similarity"), "evidence": []}
         if len(product["evidence"]) < 2:
             product["evidence"].append(evidence(review))
     # sorted is stable, so products with equal counts keep the order of their closest review.
