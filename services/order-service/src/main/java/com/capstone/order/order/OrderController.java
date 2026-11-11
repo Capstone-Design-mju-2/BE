@@ -33,7 +33,7 @@ public class OrderController {
         List<ItemInput> items = request.items().stream()
                 .map(i -> new ItemInput(i.productId(), i.optionKey(), i.quantity()))
                 .toList();
-        return orderService.place(request.ordererKey(), items);
+        return orderService.place(request.ordererKey(), request.requestId(), items);
     }
 
     @ExceptionHandler(OrderFailedException.class)
@@ -57,6 +57,7 @@ public class OrderController {
 
     public record CreateOrderRequest(
             @NotBlank @Size(max = 100) String ordererKey,
+            @Size(min = 1, max = 100) String requestId,
             @NotNull @Size(min = 1, max = 20) List<@Valid ItemRequest> items) {}
 
     public record ItemRequest(

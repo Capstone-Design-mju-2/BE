@@ -19,6 +19,7 @@ import com.capstone.order.TestcontainersConfiguration;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,6 +40,30 @@ class InventoryCheckControllerTest {
         inventoryRepository.deleteAll();
         inventoryRepository.save(new Inventory(101L, "default", "상품 101", 10000, 12));
         inventoryRepository.save(new Inventory(102L, "default", "상품 102", 10000, 0));
+        inventoryRepository.save(new Inventory(103L, "12", "크림 50ml 2개", 23900, 0));
+        inventoryRepository.save(new Inventory(103L, "11", "크림 50ml", 12900, 3));
+    }
+
+    @Test
+    void 옵션을_optionKey_순서로_가격_수량_상태와_함께_반환한다() throws Exception {
+        mockMvc.perform(get("/api/v1/inventories/103/options"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(103))
+                .andExpect(jsonPath("$.options[*].optionKey").value(contains("11", "12")))
+                .andExpect(jsonPath("$.options[0].name").value("크림 50ml"))
+                .andExpect(jsonPath("$.options[0].price").value(12900))
+                .andExpect(jsonPath("$.options[0].quantity").value(3))
+                .andExpect(jsonPath("$.options[0].status").value("IN_STOCK"))
+                .andExpect(jsonPath("$.options[1].quantity").value(0))
+                .andExpect(jsonPath("$.options[1].status").value("OUT_OF_STOCK"));
+    }
+
+    @Test
+    void 옵션이_없는_상품이면_404와_PRODUCT_NOT_FOUND를_반환한다() throws Exception {
+        mockMvc.perform(get("/api/v1/inventories/999/options"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("옵션 정보가 없는 상품입니다."));
     }
 
     @Test

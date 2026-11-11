@@ -19,6 +19,9 @@ public class Order {
     @Column(name = "orderer_key", nullable = false)
     private String ordererKey;
 
+    @Column(name = "request_id")
+    private String requestId;
+
     @Column(name = "total_price", nullable = false)
     private int totalPrice;
 
@@ -30,8 +33,9 @@ public class Order {
 
     protected Order() {}
 
-    public Order(String ordererKey) {
+    public Order(String ordererKey, String requestId) {
         this.ordererKey = ordererKey;
+        this.requestId = requestId;
         this.createdAt = Instant.now();
     }
 
@@ -43,6 +47,7 @@ public class Order {
 
     public Long getId() { return id; }
     public String getOrdererKey() { return ordererKey; }
+    public String getRequestId() { return requestId; }
     public int getTotalPrice() { return totalPrice; }
     public Instant getCreatedAt() { return createdAt; }
     public List<OrderItem> getItems() { return items; }
