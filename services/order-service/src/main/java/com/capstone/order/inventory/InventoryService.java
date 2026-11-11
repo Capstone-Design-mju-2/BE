@@ -2,6 +2,7 @@ package com.capstone.order.inventory;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,16 @@ public class InventoryService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<OptionView> options(Long productId) {
+        return inventoryRepository.findAllByProductIdIn(List.of(productId)).stream()
+            .sorted(Comparator.comparing(Inventory::getOptionKey))
+            .map(option -> new OptionView(option.getOptionKey(), option.getName(), option.getPrice(),
+                option.getQuantity(),
+                option.getQuantity() > 0 ? InventoryStatus.IN_STOCK : InventoryStatus.OUT_OF_STOCK))
+            .toList();
+    }
+
     private InventoryCheck toCheck(Long productId, List<Inventory> options) {
        if (options == null || options.isEmpty()) {
         return new InventoryCheck(productId, InventoryStatus.NOT_FOUND, null, null);
@@ -55,4 +66,6 @@ public class InventoryService {
 
     public record InventoryCheck(Long productId, InventoryStatus status, Integer quantity,
                                  LocalDate estimatedDeliveryDate) {}
+
+    public record OptionView(String optionKey, String name, int price, int quantity, InventoryStatus status) {}
 }

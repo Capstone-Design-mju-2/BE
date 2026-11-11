@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN request_id VARCHAR(100) UNIQUE;

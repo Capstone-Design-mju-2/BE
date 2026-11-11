@@ -1,5 +1,7 @@
 package com.capstone.order.order;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -108,6 +110,48 @@ class OrderControllerTest {
                 """.formatted("a".repeat(101)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_ORDER"));
+    }
+
+    @Test
+    void 같은_requestId로_다시_보내면_처음_주문을_돌려주고_재고는_한_번만_줄인다() throws Exception {
+        String body = """
+                {"ordererKey": "demo", "requestId": "retry-1", "items": [{"productId": 1, "optionKey": "50ml", "quantity": 2}]}
+                """;
+        String first = order(body).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String second = order(body).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+
+        assertThat(second).isEqualTo(first);
+        assertThat(stock(1L, "50ml")).isEqualTo(3);
+        assertThat(orderRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 실패한_requestId로_다시_보내면_그때의_재고로_다시_시도한다() throws Exception {
+        order("""
+                {"ordererKey": "demo", "requestId": "retry-2", "items": [{"productId": 1, "optionKey": "50ml", "quantity": 6}]}
+                """)
+                .andExpect(status().isConflict());
+
+        order("""
+                {"ordererKey": "demo", "requestId": "retry-2", "items": [{"productId": 1, "optionKey": "50ml", "quantity": 2}]}
+                """)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.items[0].quantity").value(2));
+
+        assertThat(stock(1L, "50ml")).isEqualTo(3);
+    }
+
+    @Test
+    void requestId가_비었거나_100자를_넘으면_400을_반환한다() throws Exception {
+        for (String requestId : List.of("", "a".repeat(101))) {
+            order("""
+                    {"ordererKey": "demo", "requestId": "%s", "items": [{"productId": 1, "optionKey": "50ml", "quantity": 1}]}
+                    """.formatted(requestId))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_ORDER"));
+        }
+
+        assertThat(orderRepository.count()).isZero();
     }
 
     private ResultActions order(String body) throws Exception {
