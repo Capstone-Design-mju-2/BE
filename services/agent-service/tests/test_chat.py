@@ -44,7 +44,7 @@ class FakeTools:
         self.skin_types.append(skin_type)
         if self.search is None:
             raise ToolError("search_products could not be called")
-        return self.search
+        return self.search(q) if callable(self.search) else self.search
 
     async def check_inventory(self, product_ids):
         self.calls.append(("check_inventory", product_ids))
@@ -76,9 +76,11 @@ class FakeLlm:
         self.model = model
         self.replies = list(replies)
         self.requests = []
+        self.tool_names = []
 
     async def complete(self, messages, tools, timeout=None):
         self.requests.append(list(messages))
+        self.tool_names.append([tool["function"]["name"] for tool in tools])
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
@@ -99,6 +101,27 @@ class SlowLlm(FakeLlm):
         except TimeoutError as error:
             raise LlmError("timed out", provider_down=True) from error
         return await super().complete(messages, tools, timeout)
+
+
+class SplitLlm(FakeLlm):
+    """The main agent plays its script; each sub-agent searches its part, then gives every found product a reason."""
+
+    async def complete(self, messages, tools, timeout=None):
+        if messages[0]["content"] != agent.WORKER_PROMPT:
+            return await super().complete(messages, tools, timeout)
+        self.tool_names.append([tool["function"]["name"] for tool in tools])
+        if messages[-1]["role"] == "user":
+            return tool_call("search_products", {"q": messages[1]["content"]}), {"total_tokens": 100}
+        found = json.loads(messages[-1]["content"])["products"]
+        return final("찾았어요.", {str(p["productId"]): f"{messages[1]['content']} 리뷰" for p in found}), {}
+
+
+def products_for(q):
+    """Three products per part, numbered apart so the parts never share one."""
+    base = 10 if "토너" in q else 20
+    return {"products": [{"productId": base + n, "name": f"{q} {n}", "brand": "B", "price": 10000,
+                          "evidence": [{"reviewId": base * 10 + n, "rating": 5, "excerpt": f"{q} 좋아요"}]}
+                         for n in range(3)]}
 
 
 def tool_call(name, arguments):
@@ -416,6 +439,29 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual(body["answer"], "찾았어요.")
         self.assertEqual(llm.requests[-1][-1], {"role": "user", "content": agent.LAST_ROUND})
         self.assertEqual(llm.requests[-2][-1]["role"], "tool")
+
+    def test_나눠_찾으면_하위_에이전트의_상품을_3개와_2개로_합치고_검색_조건은_null이다(self):
+        llm = SplitLlm(tool_call("split_search", {"parts": ["건성용 토너", "수분크림"]}),
+                       tool_call("search_products", {"q": "크림"}),
+                       tool_call("check_inventory", {"product_ids": [10, 11, 12, 20, 21]}),
+                       final("둘 다 찾았어요.", {}))
+        tools = serve(products_for, INVENTORY, llm)
+        body = self.chat("건성용 토너랑 수분크림 추천해 줘").json()
+
+        self.assertEqual([p["productId"] for p in body["products"]], [10, 11, 12, 20, 21])
+        self.assertEqual(body["products"][0]["reason"], "건성용 토너 리뷰")
+        self.assertIsNone(body["searchConditions"])
+        self.assertEqual(sorted(c[1] for c in tools.calls if c[0] == "search_products"), ["건성용 토너", "수분크림"])
+        self.assertEqual(json.loads(llm.requests[2][-1]["content"])["error"], agent.AFTER_SPLIT)
+        self.assertIn("split_search", llm.tool_names[0])
+        self.assertTrue(all("split_search" not in names for names in llm.tool_names[1:3]))
+
+    def test_검색_조건이_정해진_요청에는_나눠_찾기를_주지_않는다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        serve(SEARCH, INVENTORY, llm)
+        self.client.post("/api/v1/chat", json={"message": MESSAGE, "searchConditions": {"q": "수분크림"}})
+
+        self.assertNotIn("split_search", llm.tool_names[0])
 
     def test_검색_조건이_정해진_요청에는_한_번만_검색하라고_알린다(self):
         conditions = {"q": "건성 피부에 끈적이지 않는 수분크림"}
