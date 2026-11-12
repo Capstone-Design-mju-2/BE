@@ -4,6 +4,7 @@ Cards are built from what the tools actually returned, never from LLM text, so e
 catalog and order responses as the contract requires.
 """
 
+import asyncio
 import json
 import re
 import time
@@ -47,15 +48,35 @@ PINNED_CONDITIONS = "\n- 이번 요청은 검색 조건이 정해져 있어 다�
 # Some chats kept calling tools after the inventory check until the rounds ran out, and tool_choice "none" came back
 # empty through the OpenAI-compatible endpoint (ADR-136).
 LAST_ROUND = "이제 도구를 더 부를 수 없다. 지금까지 받은 결과로 마지막 답 JSON만 쓴다."
-SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
-""" + (SEMANTIC_QUERY if settings.search_backend == "opensearch" else KEYWORD_QUERY) + """
-- 질문이 찾는 상품의 카테고리가 분명하면 category에 그 카테고리 이름을, 브랜드를 말하면 brand에 브랜드 이름을 넣는다. 분명하지 않으면 비워 둔다.
-- 질문이 어떤 성분이 빠진 상품을 원하면 exclude_ingredients에 그 성분을 넣는다.
-- 상품을 추천하기 전에 찾은 상품의 productId 전부로 check_inventory를 불러 재고를 확인한다.
-- 마지막 답은 다른 글 없이 JSON 하나로만 쓴다: {"answer": "사용자에게 할 한두 문장", "reasons": {"<productId>": "추천 이유 한 문장"}}
+QUERY = SEMANTIC_QUERY if settings.search_backend == "opensearch" else KEYWORD_QUERY
+SPLIT_RULE = "- 질문이 서로 다른 상품 유형을 둘 이상 찾으면(예: 토너랑 선크림) 처음에 search_products 대신 split_search를 한 번 부른다. 그 뒤에는 검색하지 않고, 받은 상품 전부로 check_inventory를 부른 다음 답한다. 하위 에이전트가 쓴 reason은 그대로 써도 된다."
+FILTER_RULES = """- 질문이 찾는 상품의 카테고리가 분명하면 category에 그 카테고리 이름을, 브랜드를 말하면 brand에 브랜드 이름을 넣는다. 분명하지 않으면 비워 둔다.
+- 질문이 어떤 성분이 빠진 상품을 원하면 exclude_ingredients에 그 성분을 넣는다."""
+ANSWER_RULES = """- 마지막 답은 다른 글 없이 JSON 하나로만 쓴다: {"answer": "사용자에게 할 한두 문장", "reasons": {"<productId>": "추천 이유 한 문장"}}
 - 검색된 상품은 화면에 모두 카드로 나간다. reasons에는 검색된 상품 하나하나에 빠짐없이 이유를 쓴다.
-- reason은 그 상품 evidence의 리뷰 발췌에 실제로 쓰인 내용만 근거로 쓴다. 발췌에 없는 효과나 성분을 지어내지 않는다.
-- 상품 추천과 상관없는 말이면 도구를 부르지 말고 reasons를 빈 객체로 둔다."""
+- reason은 그 상품 evidence의 리뷰 발췌에 실제로 쓰인 내용만 근거로 쓴다. 발췌에 없는 효과나 성분을 지어내지 않는다."""
+# The split rule comes after the filter rules: put between the query and filter rules, it made the LLM drop the
+# category in all three runs of one question (ADR-138).
+SYSTEM_PROMPT = ("너는 화장품 쇼핑몰의 상품 추천 도우미다.\n" + QUERY + "\n" + FILTER_RULES + "\n" + SPLIT_RULE
+                 + "\n- 상품을 추천하기 전에 찾은 상품의 productId 전부로 check_inventory를 불러 재고를 확인한다.\n"
+                 + ANSWER_RULES + "\n- 상품 추천과 상관없는 말이면 도구를 부르지 말고 reasons를 빈 객체로 둔다.")
+# A sub-agent finds one product type of a split question; the main agent checks inventory for all of them (ADR-138).
+WORKER_PROMPT = ("너는 화장품 쇼핑몰의 상품 추천 도우미이고, 사용자 질문 가운데 한 상품 유형만 맡아 찾는다. 재고는 확인하지 않는다.\n"
+                 + QUERY + "\n" + FILTER_RULES + "\n" + ANSWER_RULES)
+SPLIT_SEARCH = "split_search"
+SPLIT_TOOL = {"type": "function", "function": {
+    "name": SPLIT_SEARCH,
+    "description": "질문이 서로 다른 상품 유형을 둘 이상 찾을 때만 첫 검색 대신 부른다. 유형마다 하위 에이전트가 동시에 상품을 찾아 "
+                   "상품과 추천 이유를 돌려준다.",
+    "parameters": {"type": "object", "required": ["parts"], "properties": {"parts": {
+        "type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 3,
+        "description": "유형마다 그 상품 유형과 질문의 조건(피부 타입, 사용감, 가격, 성분 등)을 담은 질문 한 문장"}}}}}
+# Tools the agent answers itself rather than an MCP server; the measurement's control arm empties it.
+LOCAL_TOOLS = [SPLIT_TOOL]
+WORKER_TOOLS = {"search_products", "search_product_reviews"}
+MAX_PARTS = 3
+AFTER_INVENTORY = "check_inventory 뒤에는 search_products를 부르지 않는다. 지금 검색 결과로 답한다"
+AFTER_SPLIT = "split_search 뒤에는 search_products를 부르지 않는다. 받은 상품으로 check_inventory를 부르고 답한다"
 
 
 async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | None = None,
@@ -92,15 +113,22 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
 
 
 async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
-                deadline: float, conditions: dict[str, Any] | None, exclude: Sequence[int]
+                deadline: float, conditions: dict[str, Any] | None, exclude: Sequence[int],
+                system: str | None = None, allowed: set[str] | None = None
                 ) -> tuple[str, list[dict], dict[int, dict], dict[int, str], dict[str, Any] | None]:
-    system = SYSTEM_PROMPT + (PINNED_CONDITIONS if conditions is not None else "")
+    """The main agent's loop, or a sub-agent's when given its own system prompt and the tools it may call."""
+    if system is None:
+        system = SYSTEM_PROMPT + (PINNED_CONDITIONS if conditions is not None else "")
+        definitions = tools.definitions + (LOCAL_TOOLS if conditions is None else [])
+    else:
+        definitions = [d for d in tools.definitions if d["function"]["name"] in (allowed or set())]
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": message}]
     products: list[dict] | None = None
     searched = conditions
     inventories: dict[int, dict] = {}
     found: dict[int, list[dict]] = {}
     filters: dict[str, Any] = {}
+    split_reasons: dict[int, str] | None = None
     search_failed = False
     # The limit covers the whole chat so the screen has one wait to plan for. Tool calls are not cut short: the one
     # running at the deadline goes on to its own limit (CALL_TIMEOUT_SECONDS), and the 1B fallback then makes its own
@@ -108,7 +136,7 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
     for round_number in range(MAX_ROUNDS):
         if round_number == MAX_ROUNDS - 1:
             messages.append({"role": "user", "content": LAST_ROUND})
-        reply, usage = await llm.complete(messages, tools.definitions, timeout=deadline - time.monotonic())
+        reply, usage = await llm.complete(messages, definitions, timeout=deadline - time.monotonic())
         trace["usage"].append(usage)
         if not isinstance(reply, dict):
             raise LlmError(f"assistant message is not an object: {reply!r}")
@@ -126,8 +154,15 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
                 raise LlmError(f"malformed tool call: {call!r}") from error
             # gpt-oss sometimes leaks its channel marker into the name: "search_products<|channel|>commentary".
             name = name.split("<|", 1)[0]
-            result, arguments = await _call_tool(tools, name, raw_arguments, trace, skin_type, conditions, filters,
-                                                 bool(inventories), exclude)
+            if name == SPLIT_SEARCH:
+                result, parts_products, parts_reasons = await _split(raw_arguments, llm, tools, trace, skin_type,
+                                                                     deadline, products)
+                if parts_products is not None:
+                    products, searched, split_reasons = parts_products, None, parts_reasons
+            else:
+                blocked = AFTER_INVENTORY if inventories else AFTER_SPLIT if split_reasons is not None else None
+                result, arguments = await _call_tool(tools, name, raw_arguments, trace, skin_type, conditions,
+                                                     filters, blocked, exclude)
             if name == "search_products":
                 if "error" in result:
                     search_failed = True
@@ -148,11 +183,67 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
         raise LlmError(f"no final answer after {MAX_ROUNDS} rounds")
     if products is None and search_failed:
         raise LlmError("every search_products call failed")
+    reasons = {**(split_reasons or {}), **reasons}
     return answer, with_cited_evidence(products or [], found, reasons), inventories, reasons, searched
 
 
+async def _split(raw_arguments: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
+                 deadline: float, products: list[dict] | None
+                 ) -> tuple[dict[str, Any], list[dict] | None, dict[int, str]]:
+    """Run a sub-agent per part at once and merge their cards, the parts sharing the five cards in order (ADR-138).
+
+    Returns what the main LLM is shown, the merged products and the sub-agents' reasons; products is None on error.
+    """
+    entry: dict[str, Any] = {"name": SPLIT_SEARCH, "arguments": raw_arguments}
+    trace["calls"].append(entry)
+    try:
+        if products is not None:
+            raise ValueError("split_search는 첫 검색 전에만 부른다")
+        parts = json.loads(raw_arguments or "{}")["parts"]
+        if not (isinstance(parts, list) and 2 <= len(parts) <= MAX_PARTS
+                and all(isinstance(part, str) and part.strip() for part in parts)):
+            raise ValueError(f"parts는 질문 문장 2~{MAX_PARTS}개다")
+    except (ValueError, KeyError, TypeError) as error:
+        entry["error"] = str(error)
+        return {"error": entry["error"]}, None, {}
+    workers = await asyncio.gather(*[_worker(part, llm, tools, skin_type, deadline) for part in parts])
+    trace["parts"] = [sub for sub, _, _ in workers]
+    merged: list[dict] = []
+    reasons: dict[int, str] = {}
+    shown = []
+    for n, (part, (_, found_products, found_reasons)) in enumerate(zip(parts, workers)):
+        size = SEARCH_LIMIT // len(parts) + (n < SEARCH_LIMIT % len(parts))
+        taken = {p["productId"] for p in merged}
+        kept = [p for p in found_products if p["productId"] not in taken][:size]
+        merged += kept
+        reasons.update({p["productId"]: found_reasons[p["productId"]] for p in kept if p["productId"] in found_reasons})
+        shown.append({"part": part, "products": [
+            {**{k: v for k, v in p.items() if k not in IMAGE_FIELDS}, "reason": found_reasons.get(p["productId"])}
+            for p in kept]})
+    if not merged:
+        entry["error"] = "하위 에이전트가 상품을 찾지 못했다"
+        return {"error": entry["error"]}, None, {}
+    return {"parts": shown}, merged, reasons
+
+
+async def _worker(part: str, llm: Llm, tools: McpTools, skin_type: str | None,
+                  deadline: float) -> tuple[dict[str, Any], list[dict], dict[int, str]]:
+    """One sub-agent: the same loop with the search tools only. A failure leaves its part empty, not the chat."""
+    sub: dict[str, Any] = {"part": part, "calls": [], "usage": []}
+    started = time.monotonic()
+    try:
+        _, products, _, reasons, _ = await _loop(part, llm, tools, sub, skin_type, deadline, None, (),
+                                                 system=WORKER_PROMPT, allowed=WORKER_TOOLS)
+        return sub, products, reasons
+    except LlmError as error:
+        sub["error"] = repr(error)
+        return sub, [], {}
+    finally:
+        sub["elapsedMs"] = round((time.monotonic() - started) * 1000)
+
+
 async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any], skin_type: str | None,
-                     conditions: dict[str, Any] | None, filters: dict[str, Any], checked: bool,
+                     conditions: dict[str, Any] | None, filters: dict[str, Any], blocked: str | None,
                      exclude: Sequence[int]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Return the result and the chosen arguments, an alternative's conditions in place of the LLM's search arguments
     and the first search's filters over a corrected search's.
@@ -164,9 +255,10 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
     if name == "search_products" and sum(c["name"] == name for c in trace["calls"]) > MAX_SEARCHES:
         entry["error"] = f"search_products는 대화 하나에 {MAX_SEARCHES}번까지만 부를 수 있다"
         return {"error": entry["error"]}, {}
-    # Searching after the inventory check left cards without inventory and ran a chat out of rounds (ADR-136).
-    if name == "search_products" and checked:
-        entry["error"] = "check_inventory 뒤에는 search_products를 부르지 않는다. 지금 검색 결과로 답한다"
+    # Searching after the inventory check left cards without inventory and ran a chat out of rounds (ADR-136); after a
+    # split it would replace the merged cards (ADR-138).
+    if name == "search_products" and blocked:
+        entry["error"] = blocked
         return {"error": entry["error"]}, {}
     try:
         arguments = json.loads(raw_arguments or "{}")
