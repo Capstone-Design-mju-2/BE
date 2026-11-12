@@ -264,6 +264,18 @@ curl -u team:<팀 비밀번호> 'https://<SITE_ADDRESS>/api/v1/products?category
 
 처음 뜰 때 인증서를 받는다. 받았는지는 `docker compose -f deploy/compose.yaml logs caddy`의 `certificate obtained successfully`로 확인한다. 못 받으면 브라우저가 HTTPS 연결을 거부한다. 인증서는 `caddy-data` 볼륨에 남아 컨테이너를 다시 만들어도 다시 받지 않는다.
 
+### 품절 시연 재고
+
+"마지막 1개를 두 브라우저가 주문하면 한쪽은 완료, 다른 쪽은 품절 대안" 장면은 상품 하나의 재고를 1개로 맞춰 보여 준다. 서버 `~/capstone`에서 `scripts/demo_stock.sh`를 쓴다. 처음 `set`할 때 그 상품의 원래 수량을 `~/demo-stock/<상품 ID>.tsv`에 남기고, `restore`가 그 수량으로 되돌린 뒤 파일을 지운다. 바뀌는 것은 재고 수량뿐이고 그 사이 들어온 주문은 그대로 남는다.
+
+```bash
+scripts/demo_stock.sh show 818       # 옵션별 수량
+scripts/demo_stock.sh set 818 1      # 리허설·시연 전
+scripts/demo_stock.sh restore 818    # 끝난 뒤
+```
+
+818은 홈 예시 질문("건성 피부에 끈적이지 않는 수분크림 중 내일 도착 가능한 거")의 카드에 자주 나오는 옵션 하나짜리 상품이다. 다른 상품을 쓰려면 그 상품 ID로 똑같이 한다. 두 브라우저에서 이 카드의 주문 패널을 둘 다 연 다음 한쪽에서 먼저 주문하면, 다른 쪽은 409 `OUT_OF_STOCK`을 받아 "같은 조건의 대안 보기"가 나온다. 품절된 뒤에 주문 패널을 연 쪽은 "모든 옵션이 품절이에요"와 같은 버튼이 나온다.
+
 ### FE 빌드
 
 FE는 API와 같은 주소에서 Caddy가 정적 파일로 내준다(ADR-125). 파일은 FE 저장소의 배포 워크플로가 빌드해 서버 `/srv/peaupick-fe`에 복사하고, Caddy는 이 폴더를 읽기 전용으로 붙인다. 워크플로가 쓰는 키는 `fe-deploy` 계정으로 이 폴더에 파일을 쓰는 것만 된다(셸 접속, 읽기, 폴더 밖 쓰기는 거부). 올라간 커밋은 `/version.txt`로 확인한다.
