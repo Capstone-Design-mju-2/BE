@@ -55,7 +55,8 @@ FILTER_RULES = """- 질문이 찾는 상품의 카테고리가 분명하면 cate
 - 질문이 어떤 성분이 빠진 상품을 원하면 exclude_ingredients에 그 성분을 넣는다."""
 ANSWER_RULES = """- 마지막 답은 다른 글 없이 JSON 하나로만 쓴다: {"answer": "사용자에게 할 한두 문장", "reasons": {"<productId>": "추천 이유 한 문장"}}
 - 검색된 상품은 화면에 모두 카드로 나간다. reasons에는 검색된 상품 하나하나에 빠짐없이 이유를 쓴다.
-- reason은 그 상품 evidence의 리뷰 발췌에 실제로 쓰인 내용만 근거로 쓴다. 발췌에 없는 효과나 성분을 지어내지 않는다."""
+- reason은 그 상품 evidence의 리뷰 발췌에 실제로 쓰인 내용만 근거로 쓴다. 발췌에 없는 효과나 성분을 지어내지 않는다.
+- 화면에는 productId가 보이지 않는다. answer에는 productId 숫자를 쓰지 않고, 상품을 가리킬 때는 상품 이름을 쓴다."""
 # The split rule comes after the filter rules: put between the query and filter rules, it made the LLM drop the
 # category in all three runs of one question (ADR-138).
 SYSTEM_PROMPT = ("너는 화장품 쇼핑몰의 상품 추천 도우미다.\n" + QUERY + "\n" + FILTER_RULES + "\n" + SPLIT_RULE
