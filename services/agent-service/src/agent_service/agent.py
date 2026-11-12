@@ -5,6 +5,7 @@ catalog and order responses as the contract requires.
 """
 
 import json
+import re
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -14,17 +15,23 @@ from agent_service.config import settings
 from agent_service.llm import Llm, LlmError
 from agent_service.tools import McpTools, ToolError
 
-MAX_ROUNDS = 5
+# A search, a corrected one, evidence searches, the inventory check and the answer, with a round to spare (ADR-136).
+MAX_ROUNDS = 6
 SEARCH_LIMIT = 5
 # One search and one corrected search (ADR-134); each more search costs another LLM round within the chat's limit.
 MAX_SEARCHES = 2
 # Search arguments the server sets itself, so they stay out of the conditions an alternative sends back (ADR-131).
 SERVER_ARGUMENTS = {"limit", "skin_type"}
+# The prompt keeps these from changing on a corrected search, yet the LLM dropped them all after an inventory check,
+# so a corrected search carries the first search's ones (ADR-136).
+FILTER_ARGUMENTS = {"max_price", "category", "brand", "exclude_ingredients"}
 # Shown to the LLM to judge a search; the card contract has no such field (ADR-134).
 SEARCH_ONLY_FIELDS = {"similarity"}
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
+QUOTE = re.compile(r"['‘\"“]([^'’\"”]{2,})['’\"”]")
+QUOTED_SHARE = 0.8
 
 # The catalog matches q as one substring of names and reviews, so a multi-word q finds nothing.
 KEYWORD_QUERY = """- search_products로 상품을 찾는다. q에는 띄어쓰기 없는 한 단어를 넣고, 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
@@ -32,10 +39,14 @@ KEYWORD_QUERY = """- search_products로 상품을 찾는다. q에는 띄어쓰�
 # Vector search compares q with whole reviews, so what a review would say about the product belongs in q (ADR-98).
 SEMANTIC_QUERY = """- search_products로 상품을 찾는다. q에는 질문이 찾는 상품 유형과 리뷰에 나올 만한 조건(피부 타입, 사용감, 효과 등)을 질문에 쓰인 말로 한 문장에 넣는다. 가격·카테고리·브랜드·성분 조건은 q에 넣지 않고 각 인자에 넣는다. 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
 - 질문에 상품 유형이 있으면 product_types에 그 유형을 상품명에 쓰이는 짧은 말로 넣고, 같은 유형을 부르는 다른 말이 있으면 함께 넣는다. 꾸미는 말은 뺀다(수분크림이면 크림).
-- 검색 결과를 받으면 질문에 맞는지 먼저 본다. 상품이 3개보다 적거나, 근거 발췌가 질문의 조건을 말하는 상품이 절반이 안 되면 q나 product_types를 다른 말로 고쳐 search_products를 한 번 더 부른다. 가격·카테고리·브랜드·성분 조건은 바꾸지 않는다. similarity(0~1)는 상품마다 가장 가까운 리뷰가 q와 얼마나 가까운지 보여 주는 참고 값이다. 다시 검색은 한 번까지이고, 카드는 마지막 검색 결과로 만든다."""
+- 검색 결과를 받으면 질문에 맞는지 먼저 본다. 상품이 3개보다 적거나, 질문이 찾는 상품 유형이 아닌 상품이 절반을 넘으면 q나 product_types를 다른 말로 고쳐 search_products를 한 번 더 부른다. 가격·카테고리·브랜드·성분 조건은 바꾸지 않는다. similarity(0~1)는 상품마다 가장 가까운 리뷰가 q와 얼마나 가까운지 보여 주는 참고 값이다. 다시 검색은 한 번까지이고, 카드는 마지막 검색 결과로 만든다.
+- 그다음 상품마다 근거 발췌가 질문의 조건(피부 타입, 사용감, 효과 등. 가격·카테고리·브랜드·성분은 빼고)을 말하는지 본다. 말하지 않는 조건이 있으면 다시 검색하지 말고 search_product_reviews에 그 상품의 productId와 그 조건을 리뷰에 쓰일 짧은 말(예: 진정, 끈적이지 않음)로 넣어 그 상품의 리뷰를 더 찾는다. 여러 상품을 한 번에 불러도 된다. 찾은 리뷰의 발췌도 그 상품의 근거로 쓸 수 있다. reason에는 근거로 쓴 발췌의 구절을 작은따옴표로 그대로 인용하고, 인용하지 않은 리뷰의 내용은 쓰지 않는다. 카드에는 인용한 리뷰만 근거로 나간다. 다시 검색과 search_product_reviews는 check_inventory보다 먼저 한다."""
 # An alternative searches the first answer's conditions whatever the LLM asks for (ADR-131), so a second search
 # would only repeat the first.
 PINNED_CONDITIONS = "\n- 이번 요청은 검색 조건이 정해져 있어 다시 검색해도 결과가 같다. search_products는 한 번만 부른다."
+# Some chats kept calling tools after the inventory check until the rounds ran out, and tool_choice "none" came back
+# empty through the OpenAI-compatible endpoint (ADR-136).
+LAST_ROUND = "이제 도구를 더 부를 수 없다. 지금까지 받은 결과로 마지막 답 JSON만 쓴다."
 SYSTEM_PROMPT = """너는 화장품 쇼핑몰의 상품 추천 도우미다.
 """ + (SEMANTIC_QUERY if settings.search_backend == "opensearch" else KEYWORD_QUERY) + """
 - 질문이 찾는 상품의 카테고리가 분명하면 category에 그 카테고리 이름을, 브랜드를 말하면 brand에 브랜드 이름을 넣는다. 분명하지 않으면 비워 둔다.
@@ -88,11 +99,15 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
     products: list[dict] | None = None
     searched = conditions
     inventories: dict[int, dict] = {}
+    found: dict[int, list[dict]] = {}
+    filters: dict[str, Any] = {}
     search_failed = False
     # The limit covers the whole chat so the screen has one wait to plan for. Tool calls are not cut short: the one
     # running at the deadline goes on to its own limit (CALL_TIMEOUT_SECONDS), and the 1B fallback then makes its own
     # search and inventory calls, so the chat can overrun by up to three tool calls.
-    for _ in range(MAX_ROUNDS):
+    for round_number in range(MAX_ROUNDS):
+        if round_number == MAX_ROUNDS - 1:
+            messages.append({"role": "user", "content": LAST_ROUND})
         reply, usage = await llm.complete(messages, tools.definitions, timeout=deadline - time.monotonic())
         trace["usage"].append(usage)
         if not isinstance(reply, dict):
@@ -111,28 +126,36 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
                 raise LlmError(f"malformed tool call: {call!r}") from error
             # gpt-oss sometimes leaks its channel marker into the name: "search_products<|channel|>commentary".
             name = name.split("<|", 1)[0]
-            result, arguments = await _call_tool(tools, name, raw_arguments, trace, skin_type, conditions, exclude)
+            result, arguments = await _call_tool(tools, name, raw_arguments, trace, skin_type, conditions, filters,
+                                                 bool(inventories), exclude)
             if name == "search_products":
                 if "error" in result:
                     search_failed = True
                 else:
                     products = result["products"]
                     searched = {k: v for k, v in arguments.items() if k not in SERVER_ARGUMENTS}
+                    filters = filters or {k: v for k, v in searched.items() if k in FILTER_ARGUMENTS}
             elif name == "check_inventory" and "error" not in result:
                 inventories.update(inventory_by_id(result))
+            elif name == "search_product_reviews" and "error" not in result:
+                if result["productId"] in {p["productId"] for p in products or []}:
+                    found.setdefault(result["productId"], []).extend(result["reviews"])
+                else:
+                    result = {"error": f"productId {result['productId']}은 검색된 상품이 아니다"}
             messages.append({"role": "tool", "tool_call_id": call_id,
                              "content": json.dumps(_without_images(result), ensure_ascii=False)})
     else:
         raise LlmError(f"no final answer after {MAX_ROUNDS} rounds")
     if products is None and search_failed:
         raise LlmError("every search_products call failed")
-    return answer, products or [], inventories, reasons, searched
+    return answer, with_cited_evidence(products or [], found, reasons), inventories, reasons, searched
 
 
 async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any], skin_type: str | None,
-                     conditions: dict[str, Any] | None,
+                     conditions: dict[str, Any] | None, filters: dict[str, Any], checked: bool,
                      exclude: Sequence[int]) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Return the result and the chosen arguments, an alternative's conditions in place of the LLM's search arguments.
+    """Return the result and the chosen arguments, an alternative's conditions in place of the LLM's search arguments
+    and the first search's filters over a corrected search's.
 
     Tool failures go back to the LLM as an error result so it can retry or answer without them.
     """
@@ -141,6 +164,10 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
     if name == "search_products" and sum(c["name"] == name for c in trace["calls"]) > MAX_SEARCHES:
         entry["error"] = f"search_products는 대화 하나에 {MAX_SEARCHES}번까지만 부를 수 있다"
         return {"error": entry["error"]}, {}
+    # Searching after the inventory check left cards without inventory and ran a chat out of rounds (ADR-136).
+    if name == "search_products" and checked:
+        entry["error"] = "check_inventory 뒤에는 search_products를 부르지 않는다. 지금 검색 결과로 답한다"
+        return {"error": entry["error"]}, {}
     try:
         arguments = json.loads(raw_arguments or "{}")
         if not isinstance(arguments, dict):
@@ -148,8 +175,8 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
     except ValueError as error:
         entry["error"] = f"invalid arguments: {error}"
         return {"error": entry["error"]}, {}
-    if name == "search_products" and conditions is not None:
-        arguments = conditions
+    if name == "search_products":
+        arguments = conditions if conditions is not None else {**arguments, **filters}
     try:
         if name == "search_products":
             return await search(tools, arguments, skin_type, exclude), arguments
@@ -173,6 +200,42 @@ async def search(tools: McpTools, arguments: dict[str, Any], skin_type: str | No
         arguments["skin_type"] = skin_type
     result = await tools.call("search_products", arguments)
     return {**result, "products": [p for p in result["products"] if p["productId"] not in exclude][:SEARCH_LIMIT]}
+
+
+def with_cited_evidence(products: list[dict], found: dict[int, list[dict]], reasons: dict[int, str]) -> list[dict]:
+    """Put the reviews a reason quotes ahead of its product's evidence, keeping two, so the card shows the reviews the
+    reason was written from, search_product_reviews' finds among them (ADR-136). An unquoted reason keeps the evidence.
+
+    >>> products = [{"productId": 1, "evidence": [{"reviewId": 1, "excerpt": "촉촉해요"}, {"reviewId": 2, "excerpt": "무난"}]}]
+    >>> found = {1: [{"reviewId": 9, "excerpt": "…며칠 쓰면 진정이 돼요"}]}
+    >>> cited = with_cited_evidence(products, found, {1: "'진정이 돼요'와 '촉촉 해요'라는 리뷰가 있어요."})
+    >>> [e["reviewId"] for e in cited[0]["evidence"]]
+    [9, 1]
+    >>> with_cited_evidence(products, found, {1: "촉촉하다는 리뷰가 있어요."}) == products
+    True
+    """
+    result = []
+    for product in products:
+        pool = product["evidence"] + found.get(product["productId"], [])
+        cited: list[dict] = []
+        for quote in QUOTE.findall(reasons.get(product["productId"], "")):
+            review = next((e for e in pool if quotes(e["excerpt"], quote)), None)
+            if review is not None and review not in cited:
+                cited.append(review)
+        result.append({**product, "evidence": (cited + [e for e in product["evidence"] if e not in cited])[:2]})
+    return result
+
+
+def quotes(excerpt: str, quote: str) -> bool:
+    """Whether most words of the quote are in the excerpt: the LLM drops words inside its quotes and elides with dots.
+
+    >>> quotes("피부가 예민한 편이어서 피부가 자주 따갑고", "피부가 예민한 편이어서 자주 따갑고")
+    True
+    >>> quotes("가볍고 닦토용으로도 좋아요 당기지 않아요", "가볍고 ... 당기지 않아요"), quotes("촉촉해요", "끈적임 없어요")
+    (True, False)
+    """
+    words = [word for word in re.split(r"\s+|\.{2,}|…", quote) if word]
+    return sum(word in excerpt for word in words) >= QUOTED_SHARE * len(words)
 
 
 def _without_images(result: dict[str, Any]) -> dict[str, Any]:

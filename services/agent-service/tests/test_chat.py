@@ -37,6 +37,7 @@ class FakeTools:
         self.calls = []
         self.skin_types = []
         self.searched = []
+        self.reviews = {}
 
     async def search_products(self, q, max_price, limit, skin_type=None):
         self.calls.append(("search_products", q, max_price, limit))
@@ -60,6 +61,9 @@ class FakeTools:
                                               arguments.get("skin_type"))
         if name == "check_inventory":
             return await self.check_inventory(arguments["product_ids"])
+        if name == "search_product_reviews":
+            self.calls.append((name, arguments["product_id"], arguments["q"]))
+            return {"productId": arguments["product_id"], "reviews": self.reviews.get(arguments["product_id"], [])}
         raise ToolError(f"{name} is not a tool")
 
 
@@ -350,6 +354,68 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual([call[1] for call in tools.calls], ["수분크림", "보습 크림"])
         self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
         self.assertEqual(len(body["products"]), 3)
+
+    def test_이유가_인용한_더_찾은_리뷰는_그_상품_근거_앞에_서고_인용하지_않으면_근거는_그대로다(self):
+        found = {"reviewId": 19, "rating": 5, "excerpt": "…쓸수록 끈적임 없이 촉촉해요", "skinType": "dry"}
+        for label, reason, expected in (
+                ("인용함", "'끈적임 없이 촉촉해요'라는 리뷰가 있어요.", [found, SEARCH["products"][0]["evidence"][0]]),
+                ("인용 안 함", "끈적이지 않는다는 리뷰가 있어요.", SEARCH["products"][0]["evidence"])):
+            with self.subTest(label):
+                llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                              tool_call("search_product_reviews", {"product_id": 1, "q": "끈적이지 않음"}),
+                              final("찾았어요.", {"1": reason}))
+                tools = serve(SEARCH, INVENTORY, llm)
+                tools.reviews = {1: [found]}
+                body = self.chat().json()
+
+                self.assertEqual(tools.calls[-1], ("search_product_reviews", 1, "끈적이지 않음"))
+                self.assertEqual(json.loads(llm.requests[-1][-1]["content"]), {"productId": 1, "reviews": [found]})
+                self.assertEqual(body["products"][0]["evidence"], expected)
+                self.assertEqual(body["products"][1]["evidence"], SEARCH["products"][1]["evidence"])
+
+    def test_검색되지_않은_상품의_리뷰를_찾으면_LLM에게_오류로_돌려주고_카드는_그대로다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("search_product_reviews", {"product_id": 99, "q": "진정"}),
+                      final("찾았어요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        tools.reviews = {99: [{"reviewId": 991, "rating": 5, "excerpt": "진정돼요", "skinType": None}]}
+        body = self.chat().json()
+
+        self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
+        self.assertEqual([p["evidence"] for p in body["products"]], [p["evidence"] for p in SEARCH["products"]])
+
+    def test_다시_검색해도_첫_검색의_가격_카테고리_브랜드_성분_조건은_그대로다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림", "max_price": 30000, "category": "스킨케어"}),
+                      tool_call("search_products", {"q": "보습 크림", "max_price": 90000}),
+                      final("찾았어요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(tools.searched[1], {"q": "보습 크림", "max_price": 30000, "category": "스킨케어", "limit": 5})
+        self.assertEqual(body["searchConditions"], {"q": "보습 크림", "max_price": 30000, "category": "스킨케어"})
+
+    def test_재고를_확인한_뒤의_검색은_오류로_돌려주고_카드는_처음_검색_결과다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+                      tool_call("search_products", {"q": "보습 크림"}),
+                      final("찾았어요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual([call[1] for call in tools.calls if call[0] == "search_products"], ["수분크림"])
+        self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
+        self.assertEqual(body["searchConditions"], {"q": "수분크림"})
+
+    def test_마지막_라운드에는_도구를_더_부를_수_없다고_알린다(self):
+        reviews = [tool_call("search_product_reviews", {"product_id": n, "q": "진정"}) for n in (1, 2, 3)]
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), *reviews,
+                      tool_call("check_inventory", {"product_ids": [1, 2, 3]}), final("찾았어요.", {}))
+        serve(SEARCH, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["answer"], "찾았어요.")
+        self.assertEqual(llm.requests[-1][-1], {"role": "user", "content": agent.LAST_ROUND})
+        self.assertEqual(llm.requests[-2][-1]["role"], "tool")
 
     def test_검색_조건이_정해진_요청에는_한_번만_검색하라고_알린다(self):
         conditions = {"q": "건성 피부에 끈적이지 않는 수분크림"}

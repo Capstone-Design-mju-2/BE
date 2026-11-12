@@ -19,6 +19,8 @@ QUERY_VECTORS = os.getenv("QUERY_VECTORS")
 # five products of the asked type; at 50 a one-brand question had four products in all (ADR-115).
 CANDIDATES = 100
 EXCERPT_LENGTH = 80
+EXCERPT_LEAD = 20
+PRODUCT_CANDIDATES = 10
 # The LLM picks a name: given numeric codes, gpt-oss sent them as JSON numbers and the schema rejected them.
 CATEGORY_CODES = {
     "스킨케어": "104001", "선케어": "104002", "클렌징/필링": "104003", "프레그런스": "104005", "헤어케어": "104006",
@@ -172,8 +174,29 @@ async def closest_of_skin_type(vector: list[float], product_ids: list[int], skin
     return [[hit["_source"] for hit in result["hits"]["hits"]] for result in response.json()["responses"]]
 
 
+async def search_product_reviews(product_id: int, q: str) -> dict[str, Any]:
+    """Find up to two reviews of one searched product that state q, a condition its evidence does not state.
+
+    q is that condition in a few words as a review would write it, such as 진정 or 끈적이지 않음.
+    """
+    knn = {"vector": embed(q), "k": PRODUCT_CANDIDATES,
+           "filter": {"bool": {"filter": [{"term": {"product_id": product_id}}]}}}
+    body = {"size": PRODUCT_CANDIDATES, "_source": ["review_id", "content", "grade", "skin_type"],
+            "query": {"knn": {"embedding": knn}}}
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
+        response.raise_for_status()
+    reviews = [hit["_source"] for hit in response.json()["hits"]["hits"]]
+    # Vectors miss negation: the review closest to 끈적이지 않음 can be one about dryness, so a review using the
+    # condition's words comes first (ADR-136).
+    worded = [r for r in reviews if anchor(" ".join(r["content"].split()), q.split()) >= 0]
+    return {"productId": product_id, "reviews": [evidence(r, q) for r in (worded[:2] or reviews[:1])]}
+
+
 # Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
 server.tool(name="search_products")(search_reviews if SEARCH_BACKEND == "opensearch" else search_products)
+if SEARCH_BACKEND == "opensearch":
+    server.tool()(search_product_reviews)
 
 
 def excluded_names(exclude_ingredients: list[str] | str | None) -> list[str]:
@@ -243,20 +266,42 @@ def with_skin_type(product: dict, found: list[dict]) -> dict:
     return {**product, "evidence": (picked + [e for e in product["evidence"] if e["reviewId"] not in ids])[:2]}
 
 
-def evidence(review: dict) -> dict:
-    return {"reviewId": review["review_id"], "rating": review["grade"], "excerpt": excerpt(review["content"]),
+def evidence(review: dict, q: str | None = None) -> dict:
+    return {"reviewId": review["review_id"], "rating": review["grade"], "excerpt": excerpt(review["content"], q),
             "skinType": review.get("skin_type")}
 
 
-def excerpt(content: str) -> str:
-    """The catalog centres its excerpt on the matched word; a vector match has none, so the review opens it.
+def excerpt(content: str, q: str | None = None) -> str:
+    """The catalog centres its excerpt on the matched word; a vector match has none, so the review opens it. Given the
+    condition a product's reviews were searched for, the excerpt starts a little before it: 82 of 518 reviews stating a
+    condition the evidence missed stated it past the opening 80 characters (ADR-136).
 
     >>> excerpt("  건성인데\\n  촉촉해요  ")
     '건성인데 촉촉해요'
     >>> len(excerpt("가" * 100))
     80
+    >>> excerpt("가" * 100 + " 끈적임 없이 좋아요", "끈적이지 않음")[-12:]
+    '가 끈적임 없이 좋아요'
     """
-    return " ".join(content.split())[:EXCERPT_LENGTH]
+    text = " ".join(content.split())
+    at = anchor(text, q.split()) if q else -1
+    if at < EXCERPT_LENGTH - EXCERPT_LEAD:
+        return text[:EXCERPT_LENGTH]
+    return "…" + text[at - EXCERPT_LEAD:at - EXCERPT_LEAD + EXCERPT_LENGTH - 1]
+
+
+def anchor(text: str, words: list[str]) -> int:
+    """Where the first word found starts, each word cut down to two letters until found, as reviews conjugate it.
+
+    >>> anchor("촉촉하고 안끈적여요", ["끈적이지", "않음"]), anchor("촉촉해요", ["진정"])
+    (6, -1)
+    """
+    for word in words:
+        for end in range(len(word), 1, -1):
+            at = text.find(word[:end])
+            if at >= 0:
+                return at
+    return -1
 
 
 def main() -> None:
