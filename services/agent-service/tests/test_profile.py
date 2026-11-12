@@ -57,6 +57,15 @@ class ProfileTest(unittest.TestCase):
         response = self.post()
         self.assertEqual(response.status_code, 503)
 
+    def test_코드_블록으로_감싼_답과_상한을_넘은_관찰도_받는다(self):
+        observations = [{"text": f"관찰 {n}", "sourceIds": ["profile"]} for n in range(7)]
+        content = "```json\n" + json.dumps({"observations": observations, "matchedProducts": [],
+                                             "matchedIngredients": []}, ensure_ascii=False) + "\n```"
+        app.dependency_overrides[get_llm] = lambda: FakeLlm(content)
+        response = self.post()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([o["text"] for o in response.json()["observations"]], [f"관찰 {n}" for n in range(5)])
+
     def test_키가_없으면_503이다(self):
         app.dependency_overrides[get_llm] = lambda: None
         self.assertEqual(self.post().status_code, 503)
