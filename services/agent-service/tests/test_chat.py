@@ -4,6 +4,7 @@ import asyncio
 import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -472,6 +473,14 @@ class LlmChatTest(unittest.TestCase):
                 self.client.post("/api/v1/chat", json={"message": MESSAGE, **extra})
 
                 self.assertEqual(agent.PINNED_CONDITIONS in llm.requests[0][0]["content"], expected)
+
+    def test_오늘_날짜를_서울_기준으로_알린다(self):
+        llm = FakeLlm(final("안녕하세요.", {}))
+        serve(SEARCH, INVENTORY, llm)
+        self.client.post("/api/v1/chat", json={"message": MESSAGE})
+
+        today = datetime.now(timezone(timedelta(hours=9))).date().isoformat()
+        self.assertIn(f"오늘은 {today}이다.", llm.requests[0][0]["content"])
 
     def test_검색_결과에_없는_상품의_reason은_버린다(self):
         serve(SEARCH, INVENTORY, FakeLlm(

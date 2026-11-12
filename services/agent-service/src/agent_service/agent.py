@@ -9,6 +9,7 @@ import json
 import re
 import time
 from collections.abc import Sequence
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +78,9 @@ WORKER_TOOLS = {"search_products", "search_product_reviews"}
 MAX_PARTS = 3
 AFTER_INVENTORY = "check_inventory 뒤에는 search_products를 부르지 않는다. 지금 검색 결과로 답한다"
 AFTER_SPLIT = "split_search 뒤에는 search_products를 부르지 않는다. 받은 상품으로 check_inventory를 부르고 답한다"
+# order-service dates deliveries in Seoul, which has no daylight saving time, so a fixed offset needs no tz data.
+SEOUL = timezone(timedelta(hours=9))
+TODAY_RULE = "\n- 오늘은 {today}이다. check_inventory의 estimatedDeliveryDate가 오늘 다음 날이면 내일 도착이다."
 
 
 async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | None = None,
@@ -118,7 +122,9 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
                 ) -> tuple[str, list[dict], dict[int, dict], dict[int, str], dict[str, Any] | None]:
     """The main agent's loop, or a sub-agent's when given its own system prompt and the tools it may call."""
     if system is None:
-        system = SYSTEM_PROMPT + (PINNED_CONDITIONS if conditions is not None else "")
+        system = (SYSTEM_PROMPT
+                  + (PINNED_CONDITIONS if conditions is not None else "")
+                  + TODAY_RULE.format(today=datetime.now(SEOUL).date().isoformat()))
         definitions = tools.definitions + (LOCAL_TOOLS if conditions is None else [])
     else:
         definitions = [d for d in tools.definitions if d["function"]["name"] in (allowed or set())]
