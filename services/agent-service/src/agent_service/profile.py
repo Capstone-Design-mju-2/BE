@@ -43,7 +43,9 @@ AI가 과거에 추천한 제품/성분이나 AI 답변을 사용자의 사용 �
 matchedProducts, matchedIngredients는 사용자 질문이나 메모에 실제 사용 후 잘 맞았다고 직접 말한 경우에만 채우세요. 추천받았다는 사실만으로 채우지 마세요.
 근거가 없는 피부 타입, 효과, 알레르기, 적합 제품/성분을 추측하지 마세요.
 진단이나 치료 조언을 하지 마세요. 확실한 근거가 없으면 observations를 빈 배열로 반환하세요.
-각 문장의 sourceIds에는 실제로 사용한 대화 ID 또는 피부 타입/메모를 뜻하는 profile만 넣으세요."""
+각 문장의 sourceIds에는 실제로 사용한 대화 ID 또는 피부 타입/메모를 뜻하는 profile만 넣으세요.
+observations는 5개까지, matchedProducts와 matchedIngredients는 10개까지 쓰세요."""
+LIST_LIMITS = {"observations": 5, "matchedProducts": 10, "matchedIngredients": 10}
 
 
 async def analyze_profile(request: ProfileRequest, llm: Llm) -> ProfileInsights:
@@ -68,7 +70,13 @@ async def analyze_profile(request: ProfileRequest, llm: Llm) -> ProfileInsights:
         content = message["content"]
         if not isinstance(content, str):
             raise ValueError("missing text")
-        result = ProfileInsights.model_validate_json(content)
+        # Haiku sometimes fences the object in ``` or writes a sixth observation (1 in 3 runs on 20 chats, 11/12);
+        # neither should cost the user the whole analysis.
+        data = json.loads(content[content.index("{"):content.rindex("}") + 1])
+        for key, limit in LIST_LIMITS.items():
+            if isinstance(data.get(key), list):
+                data[key] = data[key][:limit]
+        result = ProfileInsights.model_validate(data)
         items = result.observations + result.matched_products + result.matched_ingredients
         if any(not set(item.source_ids).issubset(evidence) for item in items):
             raise ValueError("unknown evidence id")
@@ -77,5 +85,5 @@ async def analyze_profile(request: ProfileRequest, llm: Llm) -> ProfileInsights:
                for item in matched):
             raise ValueError("matched item not named by the user")
         return result
-    except (KeyError, TypeError, ValueError) as error:
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
         raise LlmError("profile response was invalid") from error
