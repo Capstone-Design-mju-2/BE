@@ -27,6 +27,8 @@ public class ProductList {
             LIMIT :size OFFSET :offset
             """;
 
+    private static final String IMAGES = "SELECT id, image_url FROM products WHERE id IN (:ids)";
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public ProductList(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -50,7 +52,15 @@ public class ProductList {
         return new Page(total, products);
     }
 
+    /** Products that do not exist are left out, and the order is not that of ids. */
+    public List<Image> images(List<Long> ids) {
+        return jdbcTemplate.query(IMAGES, Map.of("ids", ids), (rs, row) -> new Image(
+                rs.getLong("id"), rs.getString("image_url"), Thumbnails.small(rs.getString("image_url"))));
+    }
+
     public record Page(long total, List<Product> products) {}
+
+    public record Image(long productId, String imageUrl, String thumbnailUrl) {}
 
     public record Product(long productId, String name, String brand, int price, int reviewCount, int reviewScore,
                           String imageUrl, String thumbnailUrl) {}

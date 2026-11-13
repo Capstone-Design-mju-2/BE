@@ -155,7 +155,24 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     if skin_type is not None and products:
         found = await closest_of_skin_type(vector, [p["productId"] for p in products], skin_type)
         products = [with_skin_type(product, closest) for product, closest in zip(products, found)]
-    return {"products": products}
+    return {"products": await with_images(products)}
+
+
+async def with_images(products: list[dict]) -> list[dict]:
+    """Add the catalog's image addresses, which the review index lacks (ADR-151). If the catalog cannot answer, the
+    cards go out without images rather than failing the search."""
+    images: dict[int, dict] = {}
+    if products:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{CATALOG_SERVICE_URL}/internal/products/images",
+                                            params={"ids": [p["productId"] for p in products]})
+                response.raise_for_status()
+            images = {image["productId"]: image for image in response.json()["images"]}
+        except httpx.HTTPError:
+            pass
+    return [{**p, "imageUrl": images.get(p["productId"], {}).get("imageUrl"),
+             "thumbnailUrl": images.get(p["productId"], {}).get("thumbnailUrl")} for p in products]
 
 
 async def closest_of_skin_type(vector: list[float], product_ids: list[int], skin_type: str) -> list[list[dict]]:
