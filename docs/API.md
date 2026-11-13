@@ -101,7 +101,7 @@ POST /api/v1/chat
 ```
 
 - `message`와 `skinType`은 카드가 나온 처음 요청 그대로, `searchConditions`는 그 답의 값 그대로 보낸다.
-- `excludeProductIds`에는 품절된 상품 ID를 넣는다. 주문 실패라면 `failedItem.productId`다. 대안에서 또 품절되면 앞서 뺀 ID에 더해 보낸다. 최대 10개다.
+- `excludeProductIds`에는 품절된 상품 ID를 넣는다. 주문 실패라면 `soldOutItems`의 `productId`다(같은 상품은 한 번만). 대안에서 또 품절되면 앞서 뺀 ID에 더해 보낸다. 최대 10개다.
 - agent는 LLM이 고른 검색 인자 대신 `searchConditions`로 검색하고, LLM은 답과 추천 이유만 쓴다. LLM이 막혀 규칙 답이 되어도 같은 조건으로 검색한다.
 - `excludeProductIds`의 상품은 카드에 나오지 않는다. 뺀 만큼 더 찾아서 카드는 최대 5개다.
 - 응답 모양은 위와 같고, `searchConditions`는 보낸 값 그대로다. 대안에 섞인 다른 품절 상품은 4절 규칙대로 "품절"로 보인다.
@@ -440,15 +440,24 @@ POST /api/v1/orders
 
 실패 응답
 
-공통 오류 본문에 `failedItem`을 더한다. `OUT_OF_STOCK`이면 화면이 `failedItem.productId`를 빼고 품절 대안을 요청한다(1절 "품절 대안").
+공통 오류 본문에 `failedItem`과 `soldOutItems`를 더한다. `OUT_OF_STOCK`이면 화면이 `soldOutItems`의 `productId`를 빼고 품절 대안을 요청한다(1절 "품절 대안").
 
 ```json
 {
-  "code": "INSUFFICIENT_STOCK",
+  "code": "OUT_OF_STOCK",
   "message": "주문할 수 없는 항목이 있습니다.",
-  "failedItem": { "productId": 101, "optionKey": "11", "requested": 5, "available": 2 }
+  "failedItem": { "productId": 101, "optionKey": "11", "requested": 1, "available": 0 },
+  "soldOutItems": [
+    { "productId": 101, "optionKey": "11", "name": "수분크림 A 50ml", "price": 12900, "requested": 1 },
+    { "productId": 102, "optionKey": "31", "name": "쿠션 B 21호", "price": 26000, "requested": 1 }
+  ]
 }
 ```
+
+- `failedItem`은 처리 순서(상품 ID, 옵션 키 순)로 처음 실패한 항목 하나다.
+- `soldOutItems`는 이 주문의 항목 중 재고가 0인 옵션 전부다. 주문을 되돌린 뒤의 재고로 정하므로, 이 주문이 잠깐 차감했다가 되돌린 옵션은 들어가지 않는다.
+- `name`, `price`는 옵션 조회 API와 같은 값이다. 화면은 "방금 품절됐어요"에 `name`을 보여 줄 수 있다.
+- `OUT_OF_STOCK`, `INSUFFICIENT_STOCK`이 아닌 실패와, 수량만 부족하고 재고가 남은 옵션은 `soldOutItems`에 들어가지 않는다. 담을 것이 없으면 빈 배열이다.
 
 | code | HTTP | 의미 |
 |---|---|---|

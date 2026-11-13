@@ -1,5 +1,7 @@
 package com.capstone.order.order;
 
+import java.util.List;
+
 import com.capstone.order.inventory.Inventory;
 
 public class OrderFailedException extends RuntimeException {
@@ -13,6 +15,7 @@ public class OrderFailedException extends RuntimeException {
     private final String optionKey;
     private final int requested;
     private final int available;
+    private final List<SoldOutItem> soldOutItems;
 
     public OrderFailedException(Reason reason, Long productId, String optionKey,
                                 int requested, int available) {
@@ -22,6 +25,17 @@ public class OrderFailedException extends RuntimeException {
         this.optionKey = optionKey;
         this.requested = requested;
         this.available = available;
+        this.soldOutItems = List.of();
+    }
+
+    private OrderFailedException(OrderFailedException original, List<SoldOutItem> soldOutItems) {
+        super(original.getMessage(), original);
+        this.reason = original.reason;
+        this.productId = original.productId;
+        this.optionKey = original.optionKey;
+        this.requested = original.requested;
+        this.available = original.available;
+        this.soldOutItems = List.copyOf(soldOutItems);
     }
 
     public Reason getReason() { return reason; }
@@ -29,6 +43,11 @@ public class OrderFailedException extends RuntimeException {
     public String getOptionKey() { return optionKey; }
     public int getRequested() { return requested; }
     public int getAvailable() { return available; }
+    public List<SoldOutItem> getSoldOutItems() { return soldOutItems; }
+
+    public OrderFailedException withSoldOutItems(List<SoldOutItem> soldOutItems) {
+        return new OrderFailedException(this, soldOutItems);
+    }
 
     public static OrderFailedException shortage(Inventory inventory, int requested) {
         Reason reason = inventory.getQuantity() == 0 ? Reason.OUT_OF_STOCK : Reason.INSUFFICIENT_STOCK;

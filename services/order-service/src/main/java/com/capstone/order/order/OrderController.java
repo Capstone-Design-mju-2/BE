@@ -46,7 +46,8 @@ public class OrderController {
         return ResponseEntity.status(status).body(new OrderFailedResponse(
                 e.getReason().name(),
                 "주문할 수 없는 항목이 있습니다.",
-                new FailedItem(e.getProductId(), e.getOptionKey(), e.getRequested(), e.getAvailable())));
+                new FailedItem(e.getProductId(), e.getOptionKey(), e.getRequested(), e.getAvailable()),
+                e.getSoldOutItems()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -65,7 +66,8 @@ public class OrderController {
             @NotNull @Size(max = 100) String optionKey,
             @NotNull @Positive @Max(99) Integer quantity) {}
 
-    public record OrderFailedResponse(String code, String message, FailedItem failedItem) {}
+    public record OrderFailedResponse(String code, String message, FailedItem failedItem,
+                                      List<SoldOutItem> soldOutItems) {}
 
     public record FailedItem(Long productId, String optionKey, int requested, int available) {}
 
