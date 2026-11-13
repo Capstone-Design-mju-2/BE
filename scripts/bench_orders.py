@@ -8,6 +8,12 @@ Start order-service with the strategy under test, then run both scenarios:
 
 Every request orders one unit of a single option, so all requests contend on one row.
 Stock of the bench option is reset through the order-db container before each run.
+
+With --gateway, orders go through the gateway while stock setup still goes to order-service directly,
+because the gateway does not route /internal (ADR-133):
+
+    uv run python scripts/bench_orders.py --strategy conditional --stock 50 --requests 200 \
+        --gateway http://127.0.0.1:8080
 """
 
 import argparse
@@ -89,13 +95,16 @@ def main() -> int:
     parser.add_argument("--requests", type=int, required=True)
     parser.add_argument("--concurrency", type=int, default=50)
     parser.add_argument("--warmup", type=int, default=200)
+    parser.add_argument("--gateway", help="send orders through the gateway at this base URL")
     args = parser.parse_args()
     base = "http://{}:{}".format(os.getenv("ORDER_SERVICE_HOST", "127.0.0.1"),
                                  os.getenv("ORDER_SERVICE_PORT", "8082"))
+    orders_base = args.gateway or base
+    label = f"{args.strategy} via gateway" if args.gateway else args.strategy
 
     reset_stock(base, WARMUP_PRODUCT_ID, args.warmup)
     with ThreadPoolExecutor(args.concurrency) as pool:
-        list(pool.map(lambda _: order(base, WARMUP_PRODUCT_ID), range(args.warmup)))
+        list(pool.map(lambda _: order(orders_base, WARMUP_PRODUCT_ID), range(args.warmup)))
 
     reset_stock(base, PRODUCT_ID, args.stock)
     count_orders = f"SELECT COUNT(*) FROM order_items WHERE product_id = {PRODUCT_ID};"
@@ -103,7 +112,7 @@ def main() -> int:
 
     start = time.perf_counter()
     with ThreadPoolExecutor(args.concurrency) as pool:
-        results = list(pool.map(lambda _: order(base, PRODUCT_ID), range(args.requests)))
+        results = list(pool.map(lambda _: order(orders_base, PRODUCT_ID), range(args.requests)))
     elapsed = time.perf_counter() - start
 
     orders = int(sql(count_orders)) - before
@@ -118,7 +127,7 @@ def main() -> int:
 
     if success != orders:
         print(f"warning: {success} success responses but {orders} order rows", file=sys.stderr)
-    print(f"| `{args.strategy}` | {args.stock} | {args.requests} | {args.concurrency} | "
+    print(f"| `{label}` | {args.stock} | {args.requests} | {args.concurrency} | "
           f"{len(results) / elapsed:.0f} | {percentile(latencies, 50):.0f} | {percentile(latencies, 95):.0f} | "
           f"{success} | {failures} | {oversold} | {stock_drift} |")
     return 0

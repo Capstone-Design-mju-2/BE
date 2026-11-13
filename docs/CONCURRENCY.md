@@ -1,4 +1,4 @@
-# 재고 동시성 실험 결과 (8~10주차)
+# 재고 동시성 실험 결과 (8~11주차)
 
 한 옵션에 주문이 몰릴 때 재고 차감 방식 다섯 가지를 같은 시나리오로 비교한 결과다. 방식은 `order.stock-strategy`로 고른다. 결정과 근거는 Notion ADR에 남긴다.
 
@@ -16,6 +16,7 @@
 - 서버가 한 대인 지금은 `conditional`과 `pessimistic`이 정확성과 처리량을 함께 만족한다.
 - `optimistic`은 재시도 없이 한 옵션에 경쟁이 몰리는 상황에 맞지 않는다.
 - `redisson`은 서버를 여러 대로 늘려 DB 밖에서 순서를 정해야 할 때 의미가 있다. 지금은 Redis 왕복만큼 느리고, Redis 장애 때 응답이 오래 걸리는 문제가 남아 있다.
+- gateway(8080)를 거쳐도 `conditional`의 초과 판매는 0건이다(동시 20개). 다만 동시 요청이 25개를 넘으면 gateway가 주문을 503으로 거절한다(9장).
 
 ## 2. 방식
 
@@ -106,7 +107,7 @@
 
 - `redisson`의 락을 트랜잭션 밖에서 먼저 잡고, 락 획득 재시도를 줄인다(`retryAttempts` 0~1). 바꾼 뒤 5장의 "Redis 중단"을 같은 조건으로 다시 재서 나란히 적는다.
 - 방식마다 한 번씩만 쟀다. `conditional`과 `pessimistic`처럼 차이가 작은 비교는 반복 측정이 필요하다.
-- Gateway를 거쳐도 초과 판매가 0인지 다시 확인한다.
+- gateway의 동시 요청 25개 제한(9장)을 어떻게 할지 정하고, 바꾼 뒤 동시 50개로 다시 잰다.
 
 ## 8. 재현 방법
 
@@ -134,4 +135,42 @@ uv run python scripts/bench_orders.py --strategy redisson-redis-down --stock 50 
 docker compose start redis
 sleep 5
 uv run python scripts/bench_orders.py --strategy redisson-recovered --stock 50 --requests 200 --warmup 0
+```
+
+## 9. Gateway 경유
+
+order-service만 띄우고(catalog·agent 없이) gateway-service(8080)를 거쳐 같은 시나리오를 다시 쟀다. gateway는 `/internal`을 넘기지 않으므로 재고 준비는 order-service로 직접 하고, 주문만 gateway로 보낸다(`bench_orders.py --gateway`). 같은 시점에 직접 호출과 번갈아 쟀고, 동시 요청은 20개다(아래 "동시 요청 25개 제한").
+
+| 방식 | 경로 | 재고 | 요청 | TPS | p50 (ms) | p95 (ms) | 성공 | 실패 (사유) | 초과 판매 | 재고 오차 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `conditional` | 직접 | 1000 | 1000 | 768 | 23 | 45 | 1000 | 0 | 0 | 0 |
+| `conditional` | gateway | 1000 | 1000 | 719 | 25 | 47 | 1000 | 0 | 0 | 0 |
+| `conditional` | 직접 | 50 | 200 | 1882 | 5 | 33 | 50 | `OUT_OF_STOCK` 150 | 0 | 0 |
+| `conditional` | gateway | 50 | 200 | 1658 | 6 | 32 | 50 | `OUT_OF_STOCK` 150 | 0 | 0 |
+| `none` | gateway | 50 | 200 | 1111 | 16 | 29 | 200 | 0 | 150 | 32 |
+
+- gateway를 거쳐도 `conditional`의 초과 판매와 재고 오차는 0이다. TPS는 768에서 719로 약 6% 줄고, p95는 45ms에서 47ms로 거의 같다.
+- `none`은 gateway를 거쳐도 초과 판매가 150건이다. 초과 판매를 막는 것은 gateway가 아니라 차감 방식이고, 이 측정이 초과 판매를 잡아낸다는 확인이기도 하다.
+
+### 동시 요청 25개 제한
+
+| 동시 요청 | 방식 | 재고 | 요청 | 성공 | 실패 (사유) |
+|---|---|---|---|---|---|
+| 20 | `conditional` | 50 | 200 | 50 | `OUT_OF_STOCK` 150 |
+| 30 | `conditional` | 50 | 200 | 26 | `SERVICE_UNAVAILABLE` 174 |
+| 30 | `none` | 50 | 200 | 25 | `SERVICE_UNAVAILABLE` 175 |
+| 50 | `conditional` | 1000 | 1000 | 0 | `SERVICE_UNAVAILABLE` 1000 |
+
+- 동시 요청이 25개를 넘으면 gateway가 주문을 order-service로 넘기지 않고 1ms 안팎에 503 `SERVICE_UNAVAILABLE`로 답했다. 한 건씩 보내면 같은 경로가 201로 정상이다.
+- gateway의 CircuitBreaker 필터(`spring-cloud-circuitbreaker-resilience4j` 5.0.3)는 Resilience4j bulkhead를 기본으로 함께 건다(`spring.cloud.circuitbreaker.bulkhead.resilience4j.enabled` 기본값 `true`). Resilience4j bulkhead의 기본 동시 호출 한도는 25개, 대기 시간은 0이라 26번째 호출부터 바로 거절되어 fallback(503)으로 간다. 거절이 실패로 쌓여 서킷이 열리면 나머지 요청도 503이 된다고 본다.
+- gateway 로그에는 거절 이유가 남지 않는다(fallback이 503만 돌려준다). 원인은 성공 건수(25, 26)와 라이브러리 기본값으로 판단했다.
+- 시연에서 동시 주문이 25건을 넘으면 주문이 503으로 끊길 수 있다. bulkhead 한도를 올리거나 끄는 것은 gateway 설정이라 따로 정한다.
+
+재현:
+
+```bash
+./gradlew :services:order-service:bootRun
+make run-gateway
+uv run python scripts/bench_orders.py --strategy conditional --stock 50 --requests 200 --concurrency 20 --gateway http://127.0.0.1:8080
+uv run python scripts/bench_orders.py --strategy conditional --stock 50 --requests 200 --warmup 0 --concurrency 30 --gateway http://127.0.0.1:8080
 ```
