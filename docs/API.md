@@ -81,7 +81,7 @@ POST /api/v1/chat
 
 `evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다.
 
-`imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 두 필드가 없다.
+`imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 리뷰 색인에 사진 주소가 없어 search-mcp가 catalog에 따로 묻고, catalog가 답하지 않으면 두 필드가 `null`이다(ADR-151).
 
 `searchConditions`는 카드를 만든 검색의 조건이다. 키 이름은 검색 도구의 인자 그대로라 검색 경로마다 다르다(OpenSearch 경로에는 `product_types`가 더 있다). 피부 타입과 개수는 들어 있지 않다. 화면은 내용을 해석하지 않고 그 답과 함께 들고 있다가, 품절 대안을 요청할 때 그대로 돌려준다. 검색하지 않은 답은 `null`이다. 상품 유형을 여럿 묻는 질문("건성용 토너랑 수분크림")을 유형별로 나눠 찾은 답도 `null`이라 품절 대안을 요청할 수 없고, 카드는 유형별 상품을 합친 최대 5개다.
 
@@ -284,6 +284,17 @@ PUT /internal/products/{externalId}/image
 - 성공하면 204, 그 무신사 상품번호의 상품이 없으면 404다.
 - `imageUrl`은 `https://`로 시작하는 300자 이하 주소만 받는다. 화면이 `img` 태그에 그대로 넣기 때문이다. 아니면 400이다.
 - 상품·리뷰를 다시 적재해도 사진 주소는 지워지지 않는다.
+
+### 상품 사진 주소 조회 (search-mcp 전용)
+
+```text
+GET /internal/products/images?ids=101&ids=102
+```
+
+응답: `{ "images": [{ "productId": 101, "imageUrl": "https://...", "thumbnailUrl": "https://..." }] }`. OpenSearch 검색 경로가 카드에 사진 주소를 붙일 때 부른다(ADR-151).
+
+- 없는 상품은 빠지고, 순서는 `ids`와 다를 수 있다. 사진이 없는 상품은 두 필드가 `null`이다.
+- `ids`는 1~20개다. 없거나 20개를 넘으면 400이다.
 
 ## 3. Inventory API
 

@@ -81,6 +81,10 @@ async def check_semantic_search() -> None:
                                "search_products", {"q": "건성 피부에 촉촉한 수분크림"})
     if [p["productId"] for p in found["products"]][:1] != [1001]:
         raise RuntimeError(f"semantic search did not rank the moisturiser first: {found!r}")
+    # The smoke catalog has no products, so the addresses are null; the fields show the cards went through the image
+    # lookup (ADR-151).
+    if any("imageUrl" not in p or "thumbnailUrl" not in p for p in found["products"]):
+        raise RuntimeError(f"semantic search did not add image addresses: {found!r}")
     found = await check_server("search-mcp", "search-mcp", "search-mcp", env,
                                "search_products", {"q": "건성 피부에 촉촉한 수분크림", "skin_type": "oily"})
     evidence = [(e["reviewId"], e["skinType"]) for p in found["products"][:1] for e in p["evidence"]]
