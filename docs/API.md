@@ -458,6 +458,8 @@ POST /api/v1/orders
 - `soldOutItems`는 이 주문의 항목 중 재고가 0인 옵션 전부다. 주문을 되돌린 뒤의 재고로 정하므로, 이 주문이 잠깐 차감했다가 되돌린 옵션은 들어가지 않는다.
 - `name`, `price`는 옵션 조회 API와 같은 값이다. 화면은 "방금 품절됐어요"에 `name`을 보여 줄 수 있다.
 - `OUT_OF_STOCK`, `INSUFFICIENT_STOCK`이 아닌 실패와, 수량만 부족하고 재고가 남은 옵션은 `soldOutItems`에 들어가지 않는다. 담을 것이 없으면 빈 배열이다.
+- `failedItem`이 수량 부족(`INSUFFICIENT_STOCK`)이어도 다른 항목이 품절이면 `soldOutItems`에 담긴다. 품절 대안은 지금처럼 `code`가 `OUT_OF_STOCK`일 때만 요청한다.
+- 품절 목록을 읽다 실패하면 `soldOutItems`는 빈 배열이고 order-service 로그에 경고를 남긴다. 원래 실패 응답은 그대로다.
 
 | code | HTTP | 의미 |
 |---|---|---|

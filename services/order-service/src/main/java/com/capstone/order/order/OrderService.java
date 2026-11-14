@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -18,6 +20,8 @@ import com.capstone.order.order.OrderFailedException.Reason;
 
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final StockDecreaser stockDecreaser;
     private final OrderRepository orderRepository;
@@ -73,6 +77,7 @@ public class OrderService {
         try {
             return e.withSoldOutItems(transaction.execute(status -> findSoldOut(items)));
         } catch (RuntimeException lookupFailure) {
+            log.warn("품절 목록을 읽지 못해 soldOutItems를 비워 응답합니다", lookupFailure);
             e.addSuppressed(lookupFailure);
             return e;
         }
