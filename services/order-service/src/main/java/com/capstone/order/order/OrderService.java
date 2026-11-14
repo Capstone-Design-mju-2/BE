@@ -1,29 +1,38 @@
 package com.capstone.order.order;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.capstone.order.inventory.Inventory;
+import com.capstone.order.inventory.InventoryRepository;
+import com.capstone.order.order.OrderFailedException.Reason;
 
 @Service
 public class OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final StockDecreaser stockDecreaser;
     private final OrderRepository orderRepository;
+    private final InventoryRepository inventoryRepository;
     private final TransactionTemplate transaction;
 
     public OrderService(StockDecreaser stockDecreaser, OrderRepository orderRepository,
-                        PlatformTransactionManager transactionManager) {
+                        InventoryRepository inventoryRepository, PlatformTransactionManager transactionManager) {
         this.stockDecreaser = stockDecreaser;
         this.orderRepository = orderRepository;
+        this.inventoryRepository = inventoryRepository;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -33,6 +42,14 @@ public class OrderService {
 
     /** A requestId that already made an order gets that order back without taking stock again (ADR-119). */
     public OrderResult place(String ordererKey, String requestId, List<ItemInput> items) {
+        try {
+            return placeOnce(ordererKey, requestId, items);
+        } catch (OrderFailedException e) {
+            throw withSoldOutItems(e, items);
+        }
+    }
+
+    private OrderResult placeOnce(String ordererKey, String requestId, List<ItemInput> items) {
         if (requestId == null) {
             return transaction.execute(status -> create(ordererKey, null, items));
         }
@@ -49,25 +66,57 @@ public class OrderService {
         }
     }
 
+    /**
+     * Lists every option of the order that has no stock left. It reads after the failed order rolled back,
+     * so an option this order took and gave back is not reported as sold out.
+     */
+    private OrderFailedException withSoldOutItems(OrderFailedException e, List<ItemInput> items) {
+        if (e.getReason() != Reason.OUT_OF_STOCK && e.getReason() != Reason.INSUFFICIENT_STOCK) {
+            return e;
+        }
+        try {
+            return e.withSoldOutItems(transaction.execute(status -> findSoldOut(items)));
+        } catch (RuntimeException lookupFailure) {
+            log.warn("품절 목록을 읽지 못해 soldOutItems를 비워 응답합니다", lookupFailure);
+            e.addSuppressed(lookupFailure);
+            return e;
+        }
+    }
+
+    private List<SoldOutItem> findSoldOut(List<ItemInput> items) {
+        List<SoldOutItem> soldOut = new ArrayList<>();
+        for (Map.Entry<ItemKey, Integer> entry : merge(items).entrySet()) {
+            ItemKey key = entry.getKey();
+            int requested = entry.getValue();
+            inventoryRepository.findByProductIdAndOptionKey(key.productId(), key.optionKey())
+                    .filter(inventory -> inventory.getQuantity() == 0)
+                    .ifPresent(inventory -> soldOut.add(SoldOutItem.of(inventory, requested)));
+        }
+        return soldOut;
+    }
+
     private Optional<OrderResult> findByRequestId(String requestId) {
         return transaction.execute(status -> orderRepository.findByRequestId(requestId).map(OrderResult::from));
     }
 
     private OrderResult create(String ordererKey, String requestId, List<ItemInput> items) {
-        Map<ItemKey, Integer> merged = new TreeMap<>(
-                Comparator.comparing(ItemKey::productId).thenComparing(ItemKey::optionKey));
-        for (ItemInput item : items) {
-            merged.merge(new ItemKey(item.productId(), item.optionKey()), item.quantity(), Integer::sum);
-        }
-
         Order order = new Order(ordererKey, requestId);
-        for (Map.Entry<ItemKey, Integer> entry : merged.entrySet()) {
+        for (Map.Entry<ItemKey, Integer> entry : merge(items).entrySet()) {
             ItemKey key = entry.getKey();
             Inventory inventory = stockDecreaser.decrease(key.productId(), key.optionKey(), entry.getValue());
             order.addItem(inventory, entry.getValue());
         }
 
         return OrderResult.from(orderRepository.save(order));
+    }
+
+    private static Map<ItemKey, Integer> merge(List<ItemInput> items) {
+        Map<ItemKey, Integer> merged = new TreeMap<>(
+                Comparator.comparing(ItemKey::productId).thenComparing(ItemKey::optionKey));
+        for (ItemInput item : items) {
+            merged.merge(new ItemKey(item.productId(), item.optionKey()), item.quantity(), Integer::sum);
+        }
+        return merged;
     }
 
     public record ItemInput(Long productId, String optionKey, int quantity) {}
