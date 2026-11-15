@@ -154,6 +154,69 @@ class OrderControllerTest {
         assertThat(orderRepository.count()).isZero();
     }
 
+    @Test
+    void 같은_옵션을_나눠_보내도_합친_수량이_99를_넘으면_400을_반환한다() throws Exception {
+        inventoryRepository.save(new Inventory(3L, "big", "대용량 재고", 1000, 200));
+
+        order("""
+                {"ordererKey": "demo", "items": [
+                  {"productId": 3, "optionKey": "big", "quantity": 60},
+                  {"productId": 3, "optionKey": "big", "quantity": 40}
+                ]}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_ORDER"));
+
+        assertThat(stock(3L, "big")).isEqualTo(200);
+        assertThat(orderRepository.count()).isZero();
+    }
+
+    @Test
+    void 같은_옵션을_나눠_보내서_합친_수량이_99면_한_항목으로_주문한다() throws Exception {
+        inventoryRepository.save(new Inventory(3L, "big", "대용량 재고", 1000, 200));
+
+        order("""
+                {"ordererKey": "demo", "items": [
+                  {"productId": 3, "optionKey": "big", "quantity": 60},
+                  {"productId": 3, "optionKey": "big", "quantity": 39}
+                ]}
+                """)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].quantity").value(99));
+
+        assertThat(stock(3L, "big")).isEqualTo(101);
+    }
+
+    @Test
+    void 항목_자리에_null이_있으면_400을_반환한다() throws Exception {
+        order("""
+                {"ordererKey": "demo", "items": [{"productId": 1, "optionKey": "50ml", "quantity": 1}, null]}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_ORDER"));
+
+        assertThat(stock(1L, "50ml")).isEqualTo(5);
+        assertThat(orderRepository.count()).isZero();
+    }
+
+    @Test
+    void 본문을_JSON으로_읽을_수_없으면_400과_INVALID_ORDER를_반환한다() throws Exception {
+        List<String> bodies = List.of(
+                "",
+                "{\"ordererKey\": \"demo\", \"items\": [",
+                """
+                {"ordererKey": "demo", "items": [{"productId": 1, "optionKey": "50ml", "quantity": "two"}]}
+                """);
+        for (String body : bodies) {
+            order(body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_ORDER"));
+        }
+
+        assertThat(orderRepository.count()).isZero();
+    }
+
     private ResultActions order(String body) throws Exception {
         return mockMvc.perform(post("/api/v1/orders")
                 .contentType(MediaType.APPLICATION_JSON)
