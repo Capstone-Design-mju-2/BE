@@ -59,6 +59,22 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void 리뷰에_걸린_상품이_limit을_넘어도_다섯_자리마다_한_자리는_상품명에만_걸린_상품이_쓴다() throws Exception {
+        for (long id = 6; id <= 9; id++) {
+            product(id, "수분 크림 " + id, 20000);
+            review(id * 100 + 1, id, 5, "2026-09-01", "촉촉해요");
+        }
+
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("limit", "5"))
+                .andExpect(jsonPath("$.products", hasSize(5)))
+                .andExpect(jsonPath("$.products[0].productId").value(2))
+                .andExpect(jsonPath("$.products[4].productId").value(1));
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("limit", "4"))
+                .andExpect(jsonPath("$.products", hasSize(4)))
+                .andExpect(jsonPath("$.products[?(@.productId == 1)]").isEmpty());
+    }
+
+    @Test
     void maxPrice를_넘는_상품과_리뷰가_없는_상품은_빠진다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉").param("maxPrice", "30000"))
                 .andExpect(jsonPath("$.products[?(@.productId == 3)]").isEmpty())

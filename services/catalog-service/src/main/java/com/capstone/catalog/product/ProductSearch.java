@@ -19,6 +19,8 @@ public class ProductSearch {
 
     // Products are ranked by how many reviews mention q. Name-only matches have no such
     // review, so their evidence falls back to the product's best reviews overall.
+    // Ranked by hits alone, name-only matches would never fit once more than limit products have matching reviews, so
+    // every fifth slot is kept for them and the slots one side cannot fill go to the other (ADR-168).
     // A skin type only reorders evidence within that pool, so evidence keeps mentioning q (ADR-120).
     // Matching reviews are found in one pass and grouped; counting per product re-reads all reviews for every product.
     private static final String SEARCH = """
@@ -40,11 +42,23 @@ public class ProductSearch {
                                        WHERE i.product_id = p.id AND i.name IN (:excluded))))
                   AND (h.hits IS NOT NULL OR p.name ILIKE :pattern)
                   AND EXISTS (SELECT 1 FROM reviews r WHERE r.product_id = p.id)
-                ORDER BY hits DESC, p.review_count DESC, p.id
+            ), ranked AS (
+                SELECT c.*,
+                       row_number() OVER (PARTITION BY c.hits = 0 ORDER BY c.hits DESC, c.review_count DESC, c.id)
+                           AS place,
+                       count(*) FILTER (WHERE c.hits > 0) OVER () AS review_matches,
+                       count(*) FILTER (WHERE c.hits = 0) OVER () AS name_matches
+                FROM candidates c
+            ), picked AS (
+                -- Never more than :limit rows already. The LIMIT tells the planner so: without it the planner guesses
+                -- about 1,900 rows here, the estimated cost passes jit_above_cost, and JIT adds about 300 ms.
+                SELECT * FROM ranked
+                WHERE place <= CASE WHEN hits > 0 THEN :limit - least(name_matches, :nameSlots)
+                                    ELSE :limit - least(review_matches, :limit - least(name_matches, :nameSlots)) END
                 LIMIT :limit
             )
             SELECT c.id, c.name, c.brand_name, c.price, c.image_url, e.review_id, e.grade, e.content, e.skin_type
-            FROM candidates c
+            FROM picked c
             CROSS JOIN LATERAL (
                 SELECT r.id AS review_id, r.grade, r.content, r.written_at, r.skin_type,
                        (r.skin_type = :skinType) IS TRUE AS same_skin
@@ -74,7 +88,8 @@ public class ProductSearch {
                 // An empty list would expand to "IN ()", which is not valid SQL.
                 .addValue("excluded", excludedIngredients.isEmpty() ? List.of("") : excludedIngredients)
                 .addValue("skinType", skinType)
-                .addValue("limit", limit);
+                .addValue("limit", limit)
+                .addValue("nameSlots", limit / 5);
 
         Map<Long, Product> products = new LinkedHashMap<>();
         jdbcTemplate.query(SEARCH, params, rs -> {
