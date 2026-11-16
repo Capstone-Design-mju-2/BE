@@ -18,6 +18,20 @@
 - `redisson`은 서버를 여러 대로 늘려 DB 밖에서 순서를 정해야 할 때 의미가 있다. 지금은 Redis 왕복만큼 느리고, Redis 장애 때 응답이 오래 걸리는 문제가 남아 있다.
 - gateway(8080)를 거쳐도 `conditional`의 초과 판매는 0건이다(동시 20개). 다만 동시 요청이 25개를 넘으면 gateway가 주문을 503으로 거절한다(9장).
 
+### 그래프
+
+수치는 4장 표와 같다. 같은 옵션 하나에 동시 요청 50개로 쟀다.
+
+![재고 50개에 주문 200건을 보냈을 때 방식별 판매된 주문 수](images/concurrency-oversell.svg)
+
+`none`만 재고 50개로 200건을 팔았다. 나머지 네 방식은 정확히 50건에서 멈춘다.
+
+![재고가 충분할 때 방식별 성공 처리량](images/concurrency-throughput.svg)
+
+![재고가 충분할 때 방식별 응답 시간 p95](images/concurrency-p95.svg)
+
+`none`은 가장 빠르지만 재고가 틀리므로(재고 오차 893) 회색으로 뺐다. 맞는 방식 중에서는 `conditional`과 `pessimistic`이 성공 처리량이 가장 높고, `redisson`은 p95가 가장 길다. `optimistic`은 p95가 짧지만 71%가 충돌로 실패해 성공 처리량이 가장 낮다.
+
 ## 2. 방식
 
 | `order.stock-strategy` | 방법 | 클래스 |
