@@ -44,17 +44,20 @@ class ProductImageControllerTest {
                     """, id, id * 1000);
         }
         jdbcTemplate.update("UPDATE products SET image_url = ? WHERE id = 2", URL);
+        jdbcTemplate.update("UPDATE products SET same_product_id = 2 WHERE id = 2");
     }
 
     @Test
-    void 있는_상품만_사진_주소를_주고_사진이_없으면_null이다() throws Exception {
+    void 있는_상품만_사진_주소와_같은_상품_표시를_주고_없으면_null이다() throws Exception {
         mockMvc.perform(get("/internal/products/images").param("ids", "2", "1", "999"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.images", hasSize(2)))
                 .andExpect(jsonPath("$.images[?(@.productId == 2)].imageUrl").value(URL))
                 .andExpect(jsonPath("$.images[?(@.productId == 2)].thumbnailUrl")
                         .value(URL.replace("_500.jpg", "_125.jpg")))
-                .andExpect(jsonPath("$.images[?(@.productId == 1)].imageUrl").value(contains(nullValue())));
+                .andExpect(jsonPath("$.images[?(@.productId == 2)].sameProductId").value(contains(2)))
+                .andExpect(jsonPath("$.images[?(@.productId == 1)].imageUrl").value(contains(nullValue())))
+                .andExpect(jsonPath("$.images[?(@.productId == 1)].sameProductId").value(contains(nullValue())));
     }
 
     @Test

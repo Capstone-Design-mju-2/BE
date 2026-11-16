@@ -223,6 +223,16 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void 같은_상품_표시가_있으면_그_번호를_주고_없으면_null이다() throws Exception {
+        jdbcTemplate.update("UPDATE products SET same_product_id = 2 WHERE id = 2");
+
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉"))
+                .andExpect(jsonPath("$.products[0].productId").value(2))
+                .andExpect(jsonPath("$.products[0].sameProductId").value(2))
+                .andExpect(jsonPath("$.products[1].sameProductId").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     void 퍼센트와_밑줄은_와일드카드가_아니라_글자로_찾는다() throws Exception {
         mockMvc.perform(get("/api/v1/products/search").param("q", "%"))
                 .andExpect(jsonPath("$.products").isEmpty());
