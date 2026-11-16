@@ -20,6 +20,8 @@ from agent_service.tools import McpTools, ToolError
 # A search, a corrected one, evidence searches, the inventory check and the answer, with a round to spare (ADR-136).
 MAX_ROUNDS = 6
 SEARCH_LIMIT = 5
+# The most products a search tool returns at once.
+MAX_SEARCH_LIMIT = 20
 # One search and one corrected search (ADR-134); each more search costs another LLM round within the chat's limit.
 MAX_SEARCHES = 2
 # Search arguments the server sets itself, so they stay out of the conditions an alternative sends back (ADR-131).
@@ -32,6 +34,8 @@ SEARCH_ONLY_FIELDS = {"similarity"}
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
+# Read only here to show a product once (ADR-172); neither the LLM nor the cards need it.
+AGENT_ONLY_FIELDS = {"sameProductId"}
 QUOTE = re.compile(r"['‘\"“]([^'’\"”]{2,})['’\"”]")
 QUOTED_SHARE = 0.8
 
@@ -185,7 +189,7 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
                 else:
                     result = {"error": f"productId {result['productId']}은 검색된 상품이 아니다"}
             messages.append({"role": "tool", "tool_call_id": call_id,
-                             "content": json.dumps(_without_images(result), ensure_ascii=False)})
+                             "content": json.dumps(_shown_to_llm(result), ensure_ascii=False)})
     else:
         raise LlmError(f"no final answer after {MAX_ROUNDS} rounds")
     if products is None and search_failed:
@@ -220,12 +224,13 @@ async def _split(raw_arguments: str, llm: Llm, tools: McpTools, trace: dict[str,
     shown = []
     for n, (part, (_, found_products, found_reasons)) in enumerate(zip(parts, workers)):
         size = SEARCH_LIMIT // len(parts) + (n < SEARCH_LIMIT % len(parts))
-        taken = {p["productId"] for p in merged}
-        kept = [p for p in found_products if p["productId"] not in taken][:size]
+        taken = {same_product(p) for p in merged}
+        kept = [p for p in found_products if same_product(p) not in taken][:size]
         merged += kept
         reasons.update({p["productId"]: found_reasons[p["productId"]] for p in kept if p["productId"] in found_reasons})
         shown.append({"part": part, "products": [
-            {**{k: v for k, v in p.items() if k not in IMAGE_FIELDS}, "reason": found_reasons.get(p["productId"])}
+            {**{k: v for k, v in p.items() if k not in IMAGE_FIELDS | AGENT_ONLY_FIELDS},
+             "reason": found_reasons.get(p["productId"])}
             for p in kept]})
     if not merged:
         entry["error"] = "하위 에이전트가 상품을 찾지 못했다"
@@ -291,14 +296,45 @@ async def search(tools: McpTools, arguments: dict[str, Any], skin_type: str | No
 
     Every searched product becomes a card, so the server sets the count whatever limit was asked for, and the skin type
     is the one the request chose (ADR-120). Excluded products, sold out a moment ago, are searched past to keep the
-    cards full and dropped before the LLM or the cards see them (ADR-131).
+    cards full and dropped before the LLM or the cards see them (ADR-131). A product Musinsa lists under several numbers
+    makes one card, and an excluded product takes its other numbers with it; when that leaves fewer than five cards
+    out of a full result, the search is asked once more for as many more (ADR-172).
     """
-    arguments = {**arguments, "limit": SEARCH_LIMIT + len(exclude)}
-    arguments.pop("skin_type", None)
+    arguments = {k: v for k, v in arguments.items() if k != "skin_type"}
     if skin_type is not None:
         arguments["skin_type"] = skin_type
-    result = await tools.call("search_products", arguments)
-    return {**result, "products": [p for p in result["products"] if p["productId"] not in exclude][:SEARCH_LIMIT]}
+    limit = SEARCH_LIMIT + len(exclude)
+    result = await tools.call("search_products", {**arguments, "limit": limit})
+    products = one_per_product(result["products"], exclude)
+    short = SEARCH_LIMIT - len(products)
+    if short > 0 and len(result["products"]) == limit and limit < MAX_SEARCH_LIMIT:
+        result = await tools.call("search_products", {**arguments, "limit": min(MAX_SEARCH_LIMIT, limit + short)})
+        products = one_per_product(result["products"], exclude)
+    return {**result, "products": products[:SEARCH_LIMIT]}
+
+
+def same_product(product: dict) -> int:
+    """The product a search result stands for: its mark when Musinsa lists it under several numbers (ADR-172)."""
+    return product.get("sameProductId") or product["productId"]
+
+
+def one_per_product(products: list[dict], exclude: Sequence[int] = ()) -> list[dict]:
+    """Keep the first number of each product and drop excluded products with all their numbers, in search order.
+
+    >>> found = [{"productId": 1}, {"productId": 2, "sameProductId": 2}, {"productId": 3, "sameProductId": 2},
+    ...          {"productId": 4, "sameProductId": 4}, {"productId": 5, "sameProductId": 4}, {"productId": 6}]
+    >>> [p["productId"] for p in one_per_product(found)]
+    [1, 2, 4, 6]
+    >>> [p["productId"] for p in one_per_product(found, exclude=[5, 6])]
+    [1, 2]
+    """
+    seen = {same_product(p) for p in products if p["productId"] in exclude}
+    kept: list[dict] = []
+    for product in products:
+        if same_product(product) not in seen:
+            seen.add(same_product(product))
+            kept.append(product)
+    return kept
 
 
 def with_cited_evidence(products: list[dict], found: dict[int, list[dict]], reasons: dict[int, str]) -> list[dict]:
@@ -337,11 +373,12 @@ def quotes(excerpt: str, quote: str) -> bool:
     return sum(word in excerpt for word in words) >= QUOTED_SHARE * len(words)
 
 
-def _without_images(result: dict[str, Any]) -> dict[str, Any]:
-    """Image addresses are for the cards; on every search they would only cost the LLM tokens (ADR-127)."""
+def _shown_to_llm(result: dict[str, Any]) -> dict[str, Any]:
+    """Image addresses are for the cards and same-product marks for the agent; on every search they would only cost the
+    LLM tokens (ADR-127, ADR-172)."""
     if "products" not in result:
         return result
-    return {**result, "products": [{k: v for k, v in p.items() if k not in IMAGE_FIELDS}
+    return {**result, "products": [{k: v for k, v in p.items() if k not in IMAGE_FIELDS | AGENT_ONLY_FIELDS}
                                    for p in result["products"]]}
 
 
@@ -389,7 +426,7 @@ def cards(products: list[dict], inventories: dict[int, dict], reasons: dict[int,
             continue
         # The contract never allows a reason without evidence to back it.
         reason = reasons.get(product["productId"]) if product["evidence"] else None
-        card = {k: v for k, v in product.items() if k not in SEARCH_ONLY_FIELDS}
+        card = {k: v for k, v in product.items() if k not in SEARCH_ONLY_FIELDS | AGENT_ONLY_FIELDS}
         result.append({**card, "reason": reason, "inventory": inventory})
     return result
 

@@ -17,17 +17,22 @@ public class ProductList {
             "priceAsc", "price, id",
             "priceDesc", "price DESC, id");
 
-    private static final String COUNT = "SELECT count(*) FROM products WHERE category_code = :category";
+    // A product Musinsa lists under several numbers shows once, as whichever of them comes first in the order (ADR-172).
+    private static final String COUNT = """
+            SELECT count(DISTINCT coalesce(same_product_id, id)) FROM products WHERE category_code = :category
+            """;
 
     private static final String PAGE = """
             SELECT id, name, brand_name, price, review_count, review_score, image_url
-            FROM products
-            WHERE category_code = :category
-            ORDER BY %s
+            FROM (SELECT p.*, row_number() OVER (PARTITION BY coalesce(same_product_id, id) ORDER BY %1$s) AS nth
+                  FROM products p
+                  WHERE category_code = :category) p
+            WHERE nth = 1
+            ORDER BY %1$s
             LIMIT :size OFFSET :offset
             """;
 
-    private static final String IMAGES = "SELECT id, image_url FROM products WHERE id IN (:ids)";
+    private static final String IMAGES = "SELECT id, image_url, same_product_id FROM products WHERE id IN (:ids)";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -55,12 +60,14 @@ public class ProductList {
     /** Products that do not exist are left out, and the order is not that of ids. */
     public List<Image> images(List<Long> ids) {
         return jdbcTemplate.query(IMAGES, Map.of("ids", ids), (rs, row) -> new Image(
-                rs.getLong("id"), rs.getString("image_url"), Thumbnails.small(rs.getString("image_url"))));
+                rs.getLong("id"), rs.getString("image_url"), Thumbnails.small(rs.getString("image_url")),
+                rs.getObject("same_product_id", Long.class)));
     }
 
     public record Page(long total, List<Product> products) {}
 
-    public record Image(long productId, String imageUrl, String thumbnailUrl) {}
+    /** sameProductId marks a product Musinsa lists under several numbers; null when it is listed once (ADR-172). */
+    public record Image(long productId, String imageUrl, String thumbnailUrl, Long sameProductId) {}
 
     public record Product(long productId, String name, String brand, int price, int reviewCount, int reviewScore,
                           String imageUrl, String thumbnailUrl) {}

@@ -83,6 +83,8 @@ POST /api/v1/chat
 
 `imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 리뷰 색인에 사진 주소가 없어 search-mcp가 catalog에 따로 묻고, catalog가 답하지 않으면 두 필드가 `null`이다(ADR-151).
 
+무신사가 번호 여럿으로 올린 같은 상품(2절 검색의 `sameProductId`)은 카드 하나만 나온다. 검색 순서가 앞선 번호를 남기고, 그 때문에 꽉 찬 검색 결과에서 카드가 5개보다 적어지면 그만큼 더 찾아 채운다. 나눠 찾기의 하위 에이전트끼리 같은 상품을 찾아도 하나만 남는다. `sameProductId`는 카드와 LLM에게 넘기는 검색 결과에서 뺀다(ADR-172).
+
 `searchConditions`는 카드를 만든 검색의 조건이다. 키 이름은 검색 도구의 인자 그대로라 검색 경로마다 다르다(OpenSearch 경로에는 `product_types`가 더 있다). 피부 타입과 개수는 들어 있지 않다. 화면은 내용을 해석하지 않고 그 답과 함께 들고 있다가, 품절 대안을 요청할 때 그대로 돌려준다. 검색하지 않은 답은 `null`이다. 상품 유형을 여럿 묻는 질문("건성용 토너랑 수분크림")을 유형별로 나눠 찾은 답도 `null`이라 품절 대안을 요청할 수 없고, 카드는 유형별 상품을 합친 최대 5개다.
 
 ### 품절 대안
@@ -103,7 +105,7 @@ POST /api/v1/chat
 - `message`와 `skinType`은 카드가 나온 처음 요청 그대로, `searchConditions`는 그 답의 값 그대로 보낸다.
 - `excludeProductIds`에는 품절된 상품 ID를 넣는다. 주문 실패라면 `soldOutItems`의 `productId`다(같은 상품은 한 번만). 대안에서 또 품절되면 앞서 뺀 ID에 더해 보낸다. 최대 10개다.
 - agent는 LLM이 고른 검색 인자 대신 `searchConditions`로 검색하고, LLM은 답과 추천 이유만 쓴다. LLM이 막혀 규칙 답이 되어도 같은 조건으로 검색한다.
-- `excludeProductIds`의 상품은 카드에 나오지 않는다. 뺀 만큼 더 찾아서 카드는 최대 5개다.
+- `excludeProductIds`의 상품은 카드에 나오지 않는다. 같은 상품의 다른 번호도 함께 뺀다(ADR-172). 뺀 만큼 더 찾아서 카드는 최대 5개다.
 - 응답 모양은 위와 같고, `searchConditions`는 보낸 값 그대로다. 대안에 섞인 다른 품절 상품은 4절 규칙대로 "품절"로 보인다.
 - 두 필드는 따로 써도 된다. `searchConditions`만 주면 조건만 고정하고, `excludeProductIds`만 주면 LLM이 조건을 다시 정한다.
 - `excludeProductIds`가 숫자 배열이 아니거나 10개를 넘거나, `searchConditions`가 객체가 아니면 400 `INVALID_CHAT_REQUEST`다. 값을 바꿔 보내 검색 도구가 받지 않으면 502 `PRODUCT_SEARCH_FAILED`다.
@@ -164,6 +166,7 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
       "price": 25900,
       "imageUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_500.jpg",
       "thumbnailUrl": "https://image.msscdn.net/images/goods_img/20260101/101/101_1_125.jpg",
+      "sameProductId": null,
       "evidence": [
         { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
         { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요", "skinType": null }
@@ -179,6 +182,7 @@ GET /api/v1/products/search?q=수분크림&maxPrice=30000&limit=5
 - `evidence`의 `skinType`은 작성자가 고른 값이고, 고르지 않았으면 `null`이다.
 - `imageUrl`은 무신사 이미지 서버의 상품 사진(500px, 장당 약 190KB)이고 `thumbnailUrl`은 같은 사진의 125px(약 20KB)이다(ADR-127). 화면은 두 주소를 `srcset`으로 함께 주어 브라우저가 사진 칸 크기와 화면 배율에 맞는 것을 고르게 한다. 메인 카드(190px 이상)는 `imageUrl`을, 채팅 카드(96px)는 배율 1 화면에서만 `thumbnailUrl`을 받는다. 사진 파일은 우리 서버에 없고 브라우저가 무신사 서버(CDN, 1년 캐시)에서 바로 받는다.
 - 사진 주소는 2026-11-02 무신사 상품 목록에서 받았다. 헬스/푸드(`104012`)는 무신사가 그 목록을 비우고 `104018`로 옮겨서 `104018` 목록에서 받았다. 그래도 없던 상품(품절 등)은 상품 상세 API로 채웠다. 상세 페이지에도 사진이 없는 39개만 둘 다 `null`이다(9,757개 중 9,718개에 사진이 있다). `thumbnailUrl`은 `imageUrl`의 이름 규칙(`_500`을 `_125`로)으로 만든 주소다. 화면은 한 크기를 못 불러오면 그 주소를 다시 받지 않고 남은 크기로 바꿔 쓴다.
+- `sameProductId`는 무신사가 같은 상품을 번호 여럿으로 올려 리뷰를 같이 보여 주는 경우 그 묶음에서 가장 작은 `productId`이고, 한 번만 올라온 상품은 `null`이다(ADR-172). 같은 브랜드, 같은 리뷰 수, 40자 이상 같은 리뷰가 10개 이상이면 같은 상품으로 본다. 적재된 데이터로 한 번 계산해 두며(2026-11-16 기준 80묶음, 상품 173개), 나중에 적재한 상품은 다시 계산하기 전까지 `null`이다. 검색은 묶음을 빼지 않고 그대로 돌려주고, 채팅 카드에 하나만 보이는 것은 agent가 한다.
 - `excerpt`는 80자를 넘기지 않는다. LLM 입력 토큰은 이 값에 비례한다.
 - `excerpt`는 `q`가 든 문장의 처음부터 보여준다. 문장은 줄바꿈이나 띄어쓰기가 뒤따르는 `.` `!` `?`에서 나눈다. 문장 처음부터 `q`까지가 80자를 넘으면 `q` 앞쪽 단어 처음부터 `…`를 붙여 보여준다.
 - 피부 타입으로 상품을 거르지는 않는다. "건성"은 리뷰 본문 키워드로 걸린다. 채팅의 `skinType`은 이 API의 `skinType`으로 넘어가 근거 리뷰를 고르는 순서에만 쓴다.
@@ -218,6 +222,7 @@ GET /api/v1/products?category=104001&sort=popular&page=0&size=20
 
 - 메인 화면 랭킹은 `sort=popular`로 부른다.
 - 정렬 값이 같으면 `productId` 순으로 이어 정렬해서 페이지끼리 겹치지 않는다. `page`가 마지막 쪽을 넘으면 `products`는 빈 배열이고 `total`은 그대로다.
+- 무신사가 번호 여럿으로 올린 같은 상품(검색의 `sameProductId`가 같은 상품)은 그 정렬에서 앞선 하나만 나오고, `total`도 하나로 센다(ADR-172). 정렬마다 남는 번호가 다를 수 있다(가격 낮은 순이면 싼 쪽).
 - `imageUrl`, `thumbnailUrl`은 검색 응답과 같다(위 검색의 사진 규칙).
 - `reviewScore`는 수집한 평점 그대로 0~100이다.
 - 상품 이미지는 수집하지 않아 응답에 없다.
@@ -292,7 +297,7 @@ PUT /internal/products/{externalId}/image
 GET /internal/products/images?ids=101&ids=102
 ```
 
-응답: `{ "images": [{ "productId": 101, "imageUrl": "https://...", "thumbnailUrl": "https://..." }] }`. OpenSearch 검색 경로가 카드에 사진 주소를 붙일 때 부른다(ADR-151).
+응답: `{ "images": [{ "productId": 101, "imageUrl": "https://...", "thumbnailUrl": "https://...", "sameProductId": null }] }`. OpenSearch 검색 경로가 카드에 사진 주소와 같은 상품 표시를 붙일 때 부른다(ADR-151, ADR-172).
 
 - 없는 상품은 빠지고, 순서는 `ids`와 다를 수 있다. 사진이 없는 상품은 두 필드가 `null`이다.
 - `ids`는 1~20개다. 없거나 20개를 넘으면 400이다.

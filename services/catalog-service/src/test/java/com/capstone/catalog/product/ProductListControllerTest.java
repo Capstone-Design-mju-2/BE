@@ -77,6 +77,17 @@ class ProductListControllerTest {
     }
 
     @Test
+    void 같은_상품은_정렬_순서가_앞선_하나만_보이고_전체_개수도_하나로_센다() throws Exception {
+        jdbcTemplate.update("UPDATE products SET same_product_id = 1 WHERE id IN (1, 3)");
+
+        mockMvc.perform(get("/api/v1/products").param("category", "104001"))
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.products[*].productId").value(contains(2, 1, 4)));
+        expectOrder("rating", 3, 4, 2);
+        expectOrder("priceAsc", 2, 4, 1);
+    }
+
+    @Test
     void 쪽끼리_겹치지_않고_마지막_쪽을_넘으면_빈_목록이다() throws Exception {
         mockMvc.perform(get("/api/v1/products").param("category", "104001").param("size", "3"))
                 .andExpect(jsonPath("$.products[*].productId").value(contains(2, 1, 3)));

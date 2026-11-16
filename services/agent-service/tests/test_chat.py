@@ -338,6 +338,31 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual([p["productId"] for p in json.loads(llm.requests[-1][-1]["content"])["products"]], [2, 3])
         self.assertEqual(tools.searched[0]["limit"], 6)
 
+    def test_무신사가_번호_둘로_올린_상품은_카드_하나이고_모자라면_한_번_더_찾아_채운다(self):
+        a, b, c = SEARCH["products"]
+        first = {"products": [a, {**b, "sameProductId": 2}, {**b, "productId": 4, "sameProductId": 2}, c,
+                              {**c, "productId": 5}]}
+        second = {"products": first["products"] + [{**c, "productId": 6}]}
+        results = iter([first, second])
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        tools = serve(lambda q: next(results), INVENTORY, llm)
+        body = self.chat().json()
+
+        shown = json.loads(llm.requests[-1][-1]["content"])["products"]
+        self.assertEqual([p["productId"] for p in shown], [1, 2, 3, 5, 6])
+        self.assertEqual([p["productId"] for p in body["products"]], [1, 2, 3, 5, 6])
+        self.assertEqual([s["limit"] for s in tools.searched], [5, 6])
+        self.assertTrue(all("sameProductId" not in p for p in shown + body["products"]))
+
+    def test_대안에서_뺀_상품의_다른_번호도_빠진다(self):
+        a, b, c = SEARCH["products"]
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        tools = serve({"products": [{**a, "sameProductId": 1}, {**b, "sameProductId": 1}, c]}, INVENTORY, llm)
+        self.client.post("/api/v1/chat", json={"message": MESSAGE, "excludeProductIds": [1]})
+
+        self.assertEqual([p["productId"] for p in json.loads(llm.requests[-1][-1]["content"])["products"]], [3])
+        self.assertEqual([s["limit"] for s in tools.searched], [6])
+
     def test_LLM이_막혀_규칙_답이_되어도_대안은_보낸_검색_조건으로_찾는다(self):
         conditions = {"q": "크림", "category": "스킨케어"}
         tools = serve(SEARCH, INVENTORY, FakeLlm(LlmError("429")))
@@ -456,6 +481,20 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual(json.loads(llm.requests[2][-1]["content"])["error"], agent.AFTER_SPLIT)
         self.assertIn("split_search", llm.tool_names[0])
         self.assertTrue(all("split_search" not in names for names in llm.tool_names[1:3]))
+
+    def test_나눠_찾기에서_하위_에이전트끼리_같은_상품의_다른_번호를_찾으면_하나만_남긴다(self):
+        def found(q):
+            result = products_for(q)
+            result["products"][0]["sameProductId"] = 10  # 10 for the toner part, 20 for the cream part
+            return result
+
+        llm = SplitLlm(tool_call("split_search", {"parts": ["건성용 토너", "수분크림"]}),
+                       tool_call("check_inventory", {"product_ids": [10, 11, 12, 21, 22]}),
+                       final("둘 다 찾았어요.", {}))
+        serve(found, INVENTORY, llm)
+        body = self.chat("건성용 토너랑 수분크림 추천해 줘").json()
+
+        self.assertEqual([p["productId"] for p in body["products"]], [10, 11, 12, 21, 22])
 
     def test_검색_조건이_정해진_요청에는_나눠_찾기를_주지_않는다(self):
         llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
