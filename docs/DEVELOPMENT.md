@@ -38,6 +38,7 @@ make smoke
 | order-db | 5434 |
 | redis | 6379 |
 | opensearch | 9200 |
+| jaeger (화면 16686, 스팬 수신 4318) | 16686, 4318 |
 
 ## 4. 실행
 
@@ -134,6 +135,22 @@ uv run --package agent-service python eval/quant.py run .local/eval/quant/vector
 SEARCH_BACKEND=hybrid uv run --package agent-service python eval/quant.py replay .local/eval/quant/vector.json .local/eval/quant/hybrid.json
 ```
 
+
+### 구간별 추적 (OpenTelemetry, Jaeger)
+
+대화 한 번의 시간이 어디서 쓰였는지 Jaeger 화면에서 본다(ADR-182). agent-service, search-mcp, inventory-mcp가 스팬을 내보낸다. `OTEL_EXPORTER_OTLP_ENDPOINT`를 주지 않으면 아무것도 내보내지 않는다.
+
+```bash
+docker compose --profile tracing up -d jaeger
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 OTEL_SERVICE_NAME=agent-service make run-agent
+# 채팅을 보낸 뒤 http://127.0.0.1:16686 에서 서비스 agent-service의 POST /api/v1/chat 을 연다.
+```
+
+- agent가 받은 요청 하나가 스팬 하나이고, 그 아래에 LLM 호출(`POST https://api.anthropic.com/...`), 도구 호출(`MCP send tools/call search_products`), 검색 안의 임베딩(`embed`)과 OpenSearch·catalog 요청이 걸린 시간과 함께 달린다.
+- agent와 MCP 서버는 표준 입출력으로 통신한다. 추적 번호는 MCP SDK가 도구 호출마다 실어 보내므로 MCP 서버의 스팬이 같은 대화 아래에 붙는다. agent는 자식 프로세스에 수신 주소와 서비스 이름만 넘긴다.
+- Jaeger는 스팬을 메모리에만 두므로 컨테이너를 다시 띄우면 지워진다.
+- 서버에서는 `deploy/.env`에 `COMPOSE_PROFILES=tracing`과 `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318`을 넣고 `docker compose -f deploy/compose.yaml up -d jaeger agent`로 켠다. 두 줄을 지우고 agent를 다시 띄우면 꺼진다. Jaeger 화면은 서버 안에서만 열려 있어 `ssh -L 16686:127.0.0.1:16686 <서버>`로 연 뒤 `http://127.0.0.1:16686`에서 본다.
+- 로컬에서 기존 질문 21개와 한 번을 더 보낸 대화 22개의 중앙값은 6.5초이고, 그중 LLM 호출이 전체 시간의 93.3%, 임베딩 2.6%, OpenSearch 0.9%, catalog 0.3%, 주문 서비스 0.2%였다.
 
 ### 검색 인덱스 동기화 실험 (이중 쓰기, Outbox, Debezium·Kafka)
 
