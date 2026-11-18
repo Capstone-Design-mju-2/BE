@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -9,10 +10,17 @@ import httpx
 from mcp.server.mcpserver import MCPServer
 
 CATALOG_SERVICE_URL = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8081")
-# "catalog" searches review text in the catalog DB; "opensearch" searches review vectors (ADR-102).
+# "catalog" searches review text in the catalog DB; "opensearch" searches review vectors (ADR-102); "hybrid" searches
+# the vectors and the review text in OpenSearch and merges the two rankings (ADR-174).
 SEARCH_BACKEND = os.getenv("SEARCH_BACKEND", "catalog")
+VECTORS = SEARCH_BACKEND in ("opensearch", "hybrid")
 OPENSEARCH_URL = os.getenv("OPENSEARCH_URL", "http://localhost:9200")
 OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "reviews")
+# The keyword index holds the same reviews without vectors, their text analysed by nori (ADR-175). It is built by
+# scripts/index_review_text.py.
+OPENSEARCH_TEXT_INDEX = os.getenv("OPENSEARCH_TEXT_INDEX", "reviews-text")
+# The constant of reciprocal rank fusion, as its authors set it (Cormack, Clarke and Büttcher, 2009).
+RRF_K = 60
 # CI has no model: it searches with question vectors the real model computed once, keyed by question.
 QUERY_VECTORS = os.getenv("QUERY_VECTORS")
 # Reviews fetched per search before grouping them into products. At 100 each of the 21 quality questions still had
@@ -39,6 +47,30 @@ Ingredient = Literal["향료", "알코올", "미네랄오일"]
 Category = Literal["스킨케어", "선케어", "클렌징/필링", "프레그런스", "헤어케어", "바디케어", "쉐이빙/제모", "뷰티 디바이스/소품",
                    "미용소품", "헬스/푸드", "마스크팩", "베이스메이크업", "립메이크업", "아이메이크업", "네일"]
 SkinType = Literal["dry", "oily", "combination", "sensitive"]
+# Items of Musinsa's review survey that found products can be ranked by, and the review count (ADR-177).
+RankBy = Literal["자극여부", "보습력", "지속력", "흡수력", "발림성", "향 만족도", "발색력", "밀착력", "세정력", "끈적임 여부",
+                 "커버력", "모발상태", "편의성", "트러블 유발 여부", "진정효과", "사용 후 촉감", "잔향 만족도", "다크닝 여부",
+                 "워터프루프 기능", "손상정도", "각질 부각 여부", "리뷰 수"]
+# Products the survey ranks before the best `limit` are kept: the right ones are among the first 20 found far more
+# often than among the first 5 (ADR-177).
+RANK_POOL = 20
+# Survey answers that do not rate an item well, spaces removed. Every other answer of the items above does.
+SURVEY_NOT_GOOD = {"보통", "낮음", "매우낮음", "나쁨", "매우나쁨", "약간있음", "매우있음", "조금있음", "눈에띄게있음",
+                   "심하게있음", "아쉬움", "매우아쉬움", "불편함", "어려움", "매우어려움", "번거로움", "번거러움", "부각됨",
+                   "많이부각됨", "조금다름", "매우다름"}
+# What a product name says comes as a gift: a bracket naming a gift or opening with a plus, or the rest of the name
+# after a plus and the word for gift.
+GIFT_TAIL = re.compile(r"\+\s*[\(\[]?\s*증정.*$")
+GIFT_GROUP = re.compile(r"[\(\[][^\)\]]*(증정|사은품)[^\)\]]*[\)\]]|[\(\[]\s*\+[^\)\]]*[\)\]]")
+# Words a product name ends its type with, and marks of a set of several products. A list made by reading product
+# names: a type missing from it only means the old rule (the asked word anywhere in the name) applies to that name.
+TYPE_WORDS = ["크림", "세럼", "앰플", "에센스", "토너", "스킨", "로션", "에멀전", "에멀젼", "패드", "폼", "오일", "워터", "밤",
+              "미스트", "마스크", "팩", "클렌저", "젤", "샴푸", "트리트먼트", "린스", "컨디셔너", "워시", "스크럽", "스틱",
+              "쿠션", "파운데이션", "틴트", "립스틱", "마스카라", "섀도우", "팔레트", "퍼퓸", "향수", "부스터", "소프너",
+              "필링", "패치", "스프레이", "파우더", "프라이머", "컨실러", "라이너", "글로스", "토닉"]
+SET_MARKS = ["세트", "SET", "Set", "2종", "3종", "+"]
+# A product with few answers is pulled toward the share an average product has, by this many answers' weight.
+SURVEY_PRIOR, SURVEY_PRIOR_WEIGHT = 0.8, 10
 
 
 def _embedder() -> Callable[[str], list[float]]:
@@ -53,12 +85,12 @@ def _embedder() -> Callable[[str], list[float]]:
     return lambda q: model.encode(q, normalize_embeddings=True).tolist()
 
 
-embed = _embedder() if SEARCH_BACKEND == "opensearch" else None
+embed = _embedder() if VECTORS else None
 
 server = MCPServer(
     name="search-mcp",
     instructions=(
-        ("Search products by the meaning of their reviews. " if SEARCH_BACKEND == "opensearch"
+        ("Search products by the meaning of their reviews. " if VECTORS
          else "Search products by keyword in product names and review texts. ")
         + "Each product carries up to two review excerpts as evidence."
     ),
@@ -108,8 +140,15 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
                          brand: str | None = None,
                          exclude_ingredients: list[Ingredient] | Ingredient | None = None,
                          product_types: list[str] | str | None = None, limit: int = 5,
-                         skin_type: SkinType | None = None) -> dict[str, Any]:
+                         skin_type: SkinType | None = None, rank_by: RankBy | None = None) -> dict[str, Any]:
     """Search products whose reviews match the meaning of q, one sentence of the product type and the conditions.
+
+    rank_by orders the found products by what buyers answered about one item of the review survey, or by 리뷰 수
+    when the question asks for popular products. Give the item the question asks about: 자극여부 (자극 없는, 순한),
+    보습력 (촉촉한), 끈적임 여부 (끈적이지 않는, 산뜻한), 지속력 (오래 가는), 잔향 만족도 (향이 오래 가는),
+    향 만족도 (향 좋은), 트러블 유발 여부 (트러블 안 나는), 진정효과, 흡수력, 발림성, 세정력, 발색력, 밀착력,
+    커버력, 모발상태 (머릿결), 손상정도, 사용 후 촉감, 편의성, 다크닝 여부, 워터프루프 기능, 각질 부각 여부.
+    Leave it out when no item fits.
 
     product_types keeps products whose name contains one of them: the type as product names write it, without
     modifiers (크림 for 수분크림), along with its other names.
@@ -137,25 +176,75 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     knn: dict[str, Any] = {"vector": vector, "k": CANDIDATES}
     if filters or must_not:
         knn["filter"] = {"bool": {"filter": filters, "must_not": must_not}}
-    body = {"size": CANDIDATES,
-            "_source": ["review_id", "product_id", "content", "grade", "skin_type", "name", "brand", "price"],
-            "query": {"knn": {"embedding": knn}}}
+    source = ["review_id", "product_id", "content", "grade", "skin_type", "name", "brand", "price"]
+    body = {"size": CANDIDATES, "_source": source, "query": {"knn": {"embedding": knn}}}
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
         response.raise_for_status()
-    reviews = [{**hit["_source"], "similarity": similarity(hit["_score"])} for hit in response.json()["hits"]["hits"]]
+        reviews = [{**hit["_source"], "similarity": similarity(hit["_score"])}
+                   for hit in response.json()["hits"]["hits"]]
+        if SEARCH_BACKEND == "hybrid":
+            worded = {"size": CANDIDATES, "_source": source, "query": {"bool": {
+                "must": [{"match": {"content": q}}], "filter": filters, "must_not": must_not}}}
+            response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_TEXT_INDEX}/_search", json=worded)
+            response.raise_for_status()
+            reviews = fuse(reviews, [hit["_source"] for hit in response.json()["hits"]["hits"]])
     # A review can describe the asked conditions for a product of another type, a mist for a cream (ADR-115).
     if isinstance(product_types, str):
         product_types = [product_types]
     types = [t for t in product_types or [] if t.strip()]
     if types:
         reviews = [r for r in reviews if has_type(r["name"], types)]
-    products = group_by_product(reviews, limit)
+    if rank_by is None:
+        products = group_by_product(reviews, limit)
+    else:
+        products = (await by_survey(group_by_product(reviews, max(limit, RANK_POOL)), rank_by))[:limit]
     # skin_type is left out of the docstring the LLM reads: the agent fills it from the chat request (ADR-120, ADR-134).
     if skin_type is not None and products:
         found = await closest_of_skin_type(vector, [p["productId"] for p in products], skin_type)
         products = [with_skin_type(product, closest) for product, closest in zip(products, found)]
     return {"products": await with_catalog_fields(products)}
+
+
+async def by_survey(products: list[dict], rank_by: str) -> list[dict]:
+    """Order found products by buyers' survey answers on one item, or by review count (ADR-177). A review that states
+    the asked quality puts a product among the found ones; whether buyers mostly agree is what the survey knows. If
+    the catalog cannot answer, the order stays as found."""
+    if not products:
+        return products
+    params: dict[str, Any] = {"ids": [p["productId"] for p in products]}
+    if rank_by != "리뷰 수":
+        params["attribute"] = rank_by
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{CATALOG_SERVICE_URL}/internal/products/survey", params=params)
+            response.raise_for_status()
+    except httpx.HTTPError:
+        return products
+    surveys = {survey["productId"]: survey for survey in response.json()["surveys"]}
+    # sorted is stable, so products with equal scores keep the order they were found in.
+    return sorted(products, key=lambda p: -survey_score(surveys.get(p["productId"]), rank_by))
+
+
+def survey_score(survey: dict | None, rank_by: str) -> float:
+    """The share of buyers who rated the item well, or the review count. A product nobody answered about comes just
+    below an average one.
+
+    >>> survey_score({"reviewCount": 7, "answers": {"전혀없음": 30, "보통": 10}}, "끈적임 여부")
+    0.76
+    >>> survey_score({"reviewCount": 7, "answers": {}}, "끈적임 여부"), survey_score(None, "리뷰 수")
+    (0.79, 0)
+    >>> survey_score({"reviewCount": 7, "answers": {}}, "리뷰 수")
+    7
+    """
+    if rank_by == "리뷰 수":
+        return survey["reviewCount"] if survey else 0
+    answers = survey["answers"] if survey else {}
+    total = sum(answers.values())
+    if not total:
+        return SURVEY_PRIOR - 0.01
+    rated_well = sum(n for answer, n in answers.items() if answer not in SURVEY_NOT_GOOD)
+    return round((rated_well + SURVEY_PRIOR * SURVEY_PRIOR_WEIGHT) / (total + SURVEY_PRIOR_WEIGHT), 4)
 
 
 async def with_catalog_fields(products: list[dict]) -> list[dict]:
@@ -212,8 +301,8 @@ async def search_product_reviews(product_id: int, q: str) -> dict[str, Any]:
 
 
 # Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
-server.tool(name="search_products")(search_reviews if SEARCH_BACKEND == "opensearch" else search_products)
-if SEARCH_BACKEND == "opensearch":
+server.tool(name="search_products")(search_reviews if VECTORS else search_products)
+if VECTORS:
     server.tool()(search_product_reviews)
 
 
@@ -234,16 +323,63 @@ def similarity(score: float) -> float:
     return round(score - 1 if score >= 1 else 1 - 1 / score, 3)
 
 
+def fuse(by_meaning: list[dict], by_words: list[dict]) -> list[dict]:
+    """Merge the two review rankings by reciprocal rank fusion: a review scores 1 / (RRF_K + rank) in each ranking it
+    is in, so one both searches found comes ahead of one only one of them found (ADR-174). A review only the keyword
+    search found has no similarity.
+
+    >>> [r["review_id"] for r in fuse([{"review_id": 1}, {"review_id": 2}], [{"review_id": 2}, {"review_id": 3}])]
+    [2, 1, 3]
+    """
+    reviews: dict[int, dict] = {}
+    scores: dict[int, float] = {}
+    for ranking in (by_meaning, by_words):
+        for rank, review in enumerate(ranking, start=1):
+            reviews.setdefault(review["review_id"], review)
+            scores[review["review_id"]] = scores.get(review["review_id"], 0) + 1 / (RRF_K + rank)
+    # sorted is stable, so equal scores keep the vector search's reviews first.
+    return sorted(reviews.values(), key=lambda r: -scores[r["review_id"]])[:CANDIDATES]
+
+
+def main_name(name: str) -> str:
+    """A product name without what comes as a gift, which names another type of product.
+
+    >>> main_name("[어성초 세럼 5ml 증정] 어성초 카밍 토너 스킨 부스터 200ml")
+    '어성초 카밍 토너 스킨 부스터 200ml'
+    >>> main_name("[SET] 수딩크림 80ml X 2개 [총 160ml] (+다이브인 세럼 20ml)")
+    '[SET] 수딩크림 80ml X 2개 [총 160ml]'
+    >>> main_name("헤어 에센스 80ml 플로럴 향+(증정) 리커버리밤 20ML")
+    '헤어 에센스 80ml 플로럴 향'
+    """
+    return GIFT_GROUP.sub("", GIFT_TAIL.sub("", name)).strip()
+
+
 def has_type(name: str, types: list[str]) -> bool:
-    """Product names space their types freely, so spaces are ignored on both sides.
+    """Whether the product is of one of the asked types. Product names space their types freely, so spaces are
+    ignored on both sides. A name ends its type with the last type word in it, so "앰플 폼" is a foam and not an
+    ampoule; a set holds several products, so any of them counts. Gifts do not count (ADR-177).
 
     >>> has_type("퓨어 소이빈 클렌징 폼 160ml", ["클렌징폼"])
     True
     >>> has_type("산뜻 선크림 B", ["토너", "스킨"])
     False
+    >>> has_type("마다가스카르 센텔라 앰플 폼 125ml", ["세럼", "앰플"])
+    False
+    >>> has_type("[SET] 수딩크림 80ml X 2개 (+다이브인 세럼 20ml)", ["세럼"])
+    False
+    >>> has_type("밀크씨슬 리페어 2종 세트(토너+세럼)", ["토너"]), has_type("히알루론 수분크림 50ml", ["크림"])
+    (True, True)
     """
-    compact = name.replace(" ", "")
-    return any(t.replace(" ", "") in compact for t in types)
+    compact = main_name(name).replace(" ", "")
+    ends = [compact.rfind(t.replace(" ", "")) + len(t.replace(" ", "")) for t in types
+            if t.replace(" ", "") in compact]
+    if not ends:
+        return False
+    if any(mark in compact for mark in SET_MARKS):
+        return True
+    # Where the name's last type word starts: an asked type that ends at or before it names something else.
+    last = max((compact.rfind(word) for word in TYPE_WORDS), default=-1)
+    return max(ends) > last
 
 
 def group_by_product(reviews: list[dict], limit: int) -> list[dict]:

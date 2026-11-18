@@ -114,6 +114,27 @@ uv run --package search-mcp --extra embed python scripts/index_reviews.py
 
 `embed_reviews.py`는 벡터를 `.local/embeddings/`에 1만 개씩 저장하고, 멈췄다 다시 실행하면 끝난 묶음을 건너뛴다. `index_reviews.py`는 같은 이름의 인덱스를 지우고 다시 만든다. 리뷰 문서마다 상품명·브랜드·가격·카테고리·성분을 복사해 넣으므로, 색인한 뒤 catalog에서 바뀐 상품 정보는 다시 색인할 때까지 반영되지 않는다. 이 어긋남은 `uv run --package search-mcp --extra embed python scripts/repro_index_mismatch.py`로 재현한다. 검색 1위 상품의 catalog 가격을 잠시 올렸다가 끝나면 되돌린다. search-mcp는 시작할 때 모델을 읽어 들이는 데 약 10초가 걸린다. 스모크 테스트는 모델 없이 `scripts/fixtures/`의 지어낸 리뷰와 미리 계산한 질문 벡터로 OpenSearch 경로를 확인한다. 픽스처는 `scripts/make_search_fixture.py`로 다시 만든다.
 
+### 구매자 설문으로 순위 정하기, 하이브리드 검색
+
+OpenSearch 검색 경로에서 LLM이 `rank_by`에 무신사 리뷰 설문의 항목(자극여부, 보습력, 끈적임 여부 등 21개)이나 `리뷰 수`를 주면, search-mcp가 상품을 20개까지 묶은 뒤 catalog에 설문 응답을 물어(`GET /internal/products/survey`) 좋게 답한 비율이 높은 순으로 다시 줄 세우고 위 5개를 남긴다(ADR-177). 검색은 조건을 말하는 리뷰가 있는 상품을 찾고, 그 조건이 대체로 맞는지는 설문이 안다. 응답이 적은 상품은 평균(0.8) 쪽으로 당겨 계산하고, catalog가 답하지 못하면 찾은 순서 그대로 내보낸다. 상품 종류(`product_types`)는 증정품 이름을 빼고, 상품명에서 마지막에 오는 종류 단어로 본다("앰플 폼"은 폼).
+
+`SEARCH_BACKEND=hybrid`는 의미 검색 리뷰 100개와 리뷰 본문 키워드 검색(BM25) 리뷰 100개의 순위를 RRF로 합친다(ADR-174). 키워드 인덱스는 벡터 없이 따로 만들고 본문은 nori로 분석한다(ADR-175). 로컬 측정에서 효과가 작아 기본값이 아니고 서버에도 올리지 않았다.
+
+```bash
+docker compose exec opensearch bin/opensearch-plugin install --batch analysis-nori   # 컨테이너를 다시 만들면 사라진다
+docker compose restart opensearch
+python3 scripts/index_review_text.py   # 리뷰 80만 개, 약 2분, 0.4GiB
+```
+
+검색 방식 비교에는 정답을 리뷰 설문으로 계산하는 질문 234개를 쓴다(`eval/quant.py`, ADR-176). 판정이 필요 없어서 검색이 바뀌어도 바로 다시 채점할 수 있다. `run`은 질문을 한 번씩 물어 LLM이 고른 검색 인자를 저장하고, `replay`는 그 인자를 LLM 없이 다시 넣어 검색 방식만 바꿔 비교한다. 기존 품질 질문 21개(`eval/run_llm.py`)의 주 지표는 정밀도@5다(ADR-173).
+
+```bash
+uv run --package agent-service python eval/quant.py build                                  # 질문 만들기
+uv run --package agent-service python eval/quant.py run .local/eval/quant/vector.json      # 질문 234개, 약 35분
+SEARCH_BACKEND=hybrid uv run --package agent-service python eval/quant.py replay .local/eval/quant/vector.json .local/eval/quant/hybrid.json
+```
+
+
 ### 검색 인덱스 동기화 실험 (이중 쓰기, Outbox, Debezium·Kafka)
 
 catalog에서 바꾼 상품 가격을 리뷰 문서에 반영하는 두 방식을 비교한다(ADR-121). 실험용 가격 변경 API `PUT /internal/products/{id}/price`가 `CATALOG_INDEX_SYNC`에 따라 다르게 동작한다.
