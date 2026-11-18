@@ -79,12 +79,27 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:?}
       LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
       LLM_FALLBACK_API_KEY: ${LLM_FALLBACK_API_KEY:-}
+      # Left empty, the agent and its MCP servers export no spans (ADR-182).
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: agent-service
     volumes:
       - agent-traces:/app/.local
     depends_on:
       - catalog
       - order
       - opensearch
+    restart: unless-stopped
+
+  # Trace viewer (ADR-182), only with COMPOSE_PROFILES=tracing in .env. The UI is bound to the server's loopback, so
+  # it is reached through an SSH tunnel and never through Caddy. Traces stay in memory, capped in count and by the
+  # memory limit: the server has little memory to spare.
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    profiles: ["tracing"]
+    command: ["--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=5000"]
+    ports:
+      - "127.0.0.1:16686:16686"
+    mem_limit: 256m
     restart: unless-stopped
 
   # Takes every /api request from Caddy and sends it to its service (ADR-133).
