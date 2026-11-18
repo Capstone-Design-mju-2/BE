@@ -2,10 +2,15 @@
 
 uv run --package agent-service python eval/run_llm.py nofilter filter > .local/eval/llm.txt
 uv run --package agent-service python eval/run_llm.py rescore nofilter filter   # after judging new products
+uv run --package agent-service python eval/run_llm.py rescore .local/eval/final-1115/result-quality.json   # any result file
 uv run --package agent-service python eval/run_llm.py nofilter filter Q16 Q17 Q18   # only these -> llm-filter-Q16-Q18.json
 
 Each question runs RUNS times per variant because the LLM is not deterministic. "nofilter" hides category, brand
 and exclude_ingredients from the tool schema and the system prompt, so the two variants differ only in the filters.
+
+The main number is precisionAt5 (ADR-173): relevant products over 5 per chat. A chat that shows fewer than 5 products
+is still divided by 5, as trec_eval's P@k does, so showing fewer products cannot raise it. hitAt5 stays for comparison
+with the October and November runs.
 """
 
 import asyncio
@@ -95,12 +100,14 @@ def summary(rows: list[dict]) -> dict:
     runs = []
     for group in by_run.values():
         shown = sum(len(r["ids"]) for r in group)
-        runs.append({"hitAt5": sum(1 for r in group if r["relevant"]) / len(group),
+        runs.append({"precisionAt5": sum(len(r["relevant"]) for r in group) / (5 * len(group)),
+                     "hitAt5": sum(1 for r in group if r["relevant"]) / len(group),
                      "relevantInTop5Mean": statistics.mean(len(r["relevant"]) for r in group),
                      "violationRate": sum(len(r["violations"]) for r in group) / shown if shown else 0,
                      "shown": shown, "errors": sum(1 for r in group if r["error"]),
                      "unjudged": sum(len(r["unjudged"]) for r in group)})
-    return {"runs": runs, "hitAt5Mean": statistics.mean(r["hitAt5"] for r in runs),
+    return {"runs": runs, "precisionAt5Mean": statistics.mean(r["precisionAt5"] for r in runs),
+            "hitAt5Mean": statistics.mean(r["hitAt5"] for r in runs),
             "relevantInTop5MeanMean": statistics.mean(r["relevantInTop5Mean"] for r in runs)}
 
 
@@ -109,7 +116,7 @@ PROMPT = agent.SYSTEM_PROMPT
 
 def rescore(variant: str, judgments: dict) -> None:
     """Score saved results again after unjudged products were judged, without calling the LLM."""
-    path = ROOT / f".local/eval/llm-{variant}.json"
+    path = Path(variant) if variant.endswith(".json") else ROOT / f".local/eval/llm-{variant}.json"
     result = json.loads(path.read_text())
     for row in result["rows"]:
         judgment = judgments[row["id"]]
