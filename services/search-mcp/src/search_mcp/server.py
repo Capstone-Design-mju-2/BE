@@ -221,7 +221,27 @@ async def by_survey(products: list[dict], rank_by: str) -> list[dict]:
             response.raise_for_status()
     except httpx.HTTPError:
         return products
-    surveys = {survey["productId"]: survey for survey in response.json()["surveys"]}
+    return ranked(products, {survey["productId"]: survey for survey in response.json()["surveys"]}, rank_by)
+
+
+def ranked(products: list[dict], surveys: dict[int, dict], rank_by: str) -> list[dict]:
+    """Found products ordered by the survey item, unless most of them were never asked about it. Musinsa asks each
+    kind of product its own items: face creams are not asked about stickiness while hand creams and sunscreens
+    are, so ranking a mixed list by it put those above every face cream (ADR-177).
+
+    >>> found = [{"productId": 1}, {"productId": 2}, {"productId": 3}]
+    >>> answers = {2: {"productId": 2, "reviewCount": 5, "answers": {"전혀없음": 9}}}
+    >>> [p["productId"] for p in ranked(found, answers, "끈적임 여부")]
+    [1, 2, 3]
+    >>> answers[3] = {"productId": 3, "reviewCount": 9, "answers": {"보통": 9}}
+    >>> [p["productId"] for p in ranked(found, answers, "끈적임 여부")]
+    [2, 1, 3]
+    >>> [p["productId"] for p in ranked(found, answers, "리뷰 수")]
+    [3, 2, 1]
+    """
+    asked = sum(bool(surveys.get(p["productId"], {}).get("answers")) for p in products)
+    if rank_by != "리뷰 수" and 2 * asked < len(products):
+        return products
     # sorted is stable, so products with equal scores keep the order they were found in.
     return sorted(products, key=lambda p: -survey_score(surveys.get(p["productId"]), rank_by))
 
