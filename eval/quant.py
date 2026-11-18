@@ -1,13 +1,18 @@
 """Questions whose answers the catalog data decides, so hundreds are scored without a judge (ADR-176).
 
 uv run --package agent-service python eval/quant.py build                                  # eval/quant-questions.json
+uv run --package agent-service python eval/quant.py build-pairs                            # eval/quant-pair-questions.json
 uv run --package agent-service python eval/quant.py run .local/eval/quant/vector.json      # one chat per question
+uv run --package agent-service python eval/quant.py run .local/eval/quant/pairs.json pairs # the pair questions
 uv run --package agent-service python eval/quant.py replay .local/eval/quant/vector.json .local/eval/quant/hybrid.json
 
 A question asks for one product type with one quality that shoppers rated in Musinsa's review survey, sometimes under
 a price. A product is right when it is of that type, within the price, and at least SHARE of its survey answers, at
 least MIN_ANSWERS of them, rate the quality well. With fewer answers nobody can tell, so it is counted apart as
 unknown. The search never reads the survey answers, only the review text.
+
+A pair question asks for two qualities at once (ADR-173's question types). It is right when both are rated well by the
+same rule, wrong when either is known to fall short, and unknown otherwise.
 
 "replay" searches again with the arguments the LLM chose in a saved run, through agent.search as a live chat does, so
 two search backends are compared on the same arguments without the LLM's run-to-run differences.
@@ -25,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_pool import ROOT, literal, sql  # noqa: E402
 
 QUESTIONS = ROOT / "eval/quant-questions.json"
+PAIR_QUESTIONS = ROOT / "eval/quant-pair-questions.json"
 MIN_ANSWERS = 30
 SHARE = 0.8
 # A question is kept when the data can tell enough products apart: this many with enough answers, right and wrong.
@@ -76,6 +82,11 @@ QUALITIES = {
     "모발상태": (["매우좋음", "좋음"], ["머릿결이 좋아지는 {t}", "모발 상태가 좋아졌다는 평이 많은 {t}"]),
     "진정효과": (["매우높음", "높음"], ["진정 효과 좋은 {t}", "진정에 좋은 {t}"]),
 }
+# The first quality of a pair question, joined to the second: "촉촉하고 끈적이지 않는 크림".
+JOINED = {"보습력": "촉촉하고", "자극여부": "자극 없고", "끈적임 여부": "끈적이지 않고", "흡수력": "흡수 잘 되고",
+          "지속력": "오래 가고", "향 만족도": "향 좋고", "발림성": "부드럽게 발리고", "세정력": "잘 지워지고",
+          "발색력": "발색 좋고", "밀착력": "잘 밀착되고", "커버력": "커버력 좋고", "모발상태": "머릿결이 좋아지고",
+          "진정효과": "진정 효과 좋고"}
 _truths: dict[tuple, dict[int, tuple[int, int, int]]] = {}
 
 
@@ -101,6 +112,18 @@ def truth(q: dict) -> dict[int, tuple[int, int, int]]:
 
 
 def judge(q: dict, product_id: int) -> str:
+    """
+    >>> _truths[("C", "T", "|", "A")] = {1: (100, 40, 36), 2: (100, 40, 20), 3: (100, 5, 5)}
+    >>> _truths[("C", "T", "|", "B")] = {1: (100, 40, 36), 2: (100, 40, 36), 3: (100, 40, 36)}
+    >>> q = {"category": "C", "typeNames": ["T"], "excludeNames": [], "maxPrice": None, "attributes": ["A", "B"]}
+    >>> [judge(q, i) for i in (1, 2, 3, 4)]
+    ['right', 'wrong', 'unknown', 'wrong']
+    """
+    if "attributes" in q:
+        one = {k: v for k, v in q.items() if k != "attributes"}
+        verdicts = [judge({**one, "attribute": a, "good": QUALITIES.get(a, ([],))[0]}, product_id)
+                    for a in q["attributes"]]
+        return "wrong" if "wrong" in verdicts else "unknown" if "unknown" in verdicts else "right"
     found = truth(q).get(product_id)
     if found is None:  # another category or another type
         return "wrong"
@@ -139,8 +162,39 @@ def build() -> None:
           "type and quality pairs,", json.dumps(Counter(q["attribute"] for q in questions), ensure_ascii=False))
 
 
-def questions_by_id() -> dict[str, dict]:
-    return {q["id"]: q for q in json.loads(QUESTIONS.read_text())["questions"]}
+def build_pairs() -> None:
+    """Two qualities of one type, kept by the same rules as build(): enough products with both answered."""
+    questions = []
+    for category, asked, names, excludes in TYPES:
+        base = {"category": category, "type": asked, "typeNames": names, "excludeNames": excludes}
+        rated = {a: truth({**base, "attribute": a, "good": good}) for a, (good, _) in QUALITIES.items()}
+        for n, first in enumerate(QUALITIES):
+            for second in list(QUALITIES)[n + 1:]:
+                judged = [(price, a_well / a_all >= SHARE and b_well / b_all >= SHARE)
+                          for i, (price, a_all, a_well) in rated[first].items()
+                          for _, b_all, b_well in [rated[second][i]] if a_all >= MIN_ANSWERS and b_all >= MIN_ANSWERS]
+                if not judged:
+                    continue
+                for cap in (None, max(10000, int(round(statistics.median(price for price, _ in judged), -4)))):
+                    kept = [right for price, right in judged if cap is None or price <= cap]
+                    if len(kept) < MIN_JUDGED or sum(kept) < MIN_RIGHT or len(kept) - sum(kept) < MIN_WRONG:
+                        continue
+                    text = (f"{JOINED[first]} {QUALITIES[second][1][0].format(t=asked)}"
+                            + (f" {cap // 10000}만원 이하로" if cap else "") + " 추천해 줘")
+                    questions.append({"id": f"P{len(questions) + 1:03d}", "text": text, **base,
+                                      "attributes": [first, second], "maxPrice": cap,
+                                      "judged": len(kept), "right": sum(kept)})
+    PAIR_QUESTIONS.write_text(json.dumps({
+        "version": "2026-11-19", "rule": f"right when of the type, within the price and, for both qualities, at least "
+        f"{SHARE:.0%} of at least {MIN_ANSWERS} survey answers rate it well; wrong when either is known to fall short",
+        "questions": questions}, ensure_ascii=False, indent=1))
+    print(len(questions), "questions,", json.dumps(Counter(tuple(q["attributes"]) for q in questions).most_common(8),
+                                                   ensure_ascii=False))
+
+
+def questions_by_id(path: Path | None = None) -> dict[str, dict]:
+    files = [path] if path else [QUESTIONS] + [PAIR_QUESTIONS] * PAIR_QUESTIONS.exists()
+    return {q["id"]: q for f in files for q in json.loads(f.read_text())["questions"]}
 
 
 def save(path: Path, rows: list[dict], source: str | None = None) -> None:
@@ -153,7 +207,8 @@ def save(path: Path, rows: list[dict], source: str | None = None) -> None:
         counts = Counter(row["verdicts"])
         counts.update(slots=5, hit=bool(counts["right"]), questions=1)
         total += counts
-        by_attribute[q["attribute"]] = by_attribute.get(q["attribute"], Counter()) + counts
+        attribute = " + ".join(q["attributes"]) if "attributes" in q else q["attribute"]
+        by_attribute[attribute] = by_attribute.get(attribute, Counter()) + counts
 
     def numbers(c: Counter) -> dict:
         return {"questions": c["questions"], "slots": c["slots"], "right": c["right"], "wrong": c["wrong"],
@@ -168,7 +223,7 @@ def save(path: Path, rows: list[dict], source: str | None = None) -> None:
     print(json.dumps(result["summary"], ensure_ascii=False), flush=True)
 
 
-async def run(out: Path) -> None:
+async def run(out: Path, path: Path = QUESTIONS) -> None:
     import run_llm
     from agent_service import agent
     from agent_service.llm import LlmError
@@ -179,7 +234,7 @@ async def run(out: Path) -> None:
     llm = get_llm()
     rows = []
     async with McpTools() as tools:
-        for q in questions_by_id().values():
+        for q in questions_by_id(path).values():
             recording = run_llm.Recording(tools, True)
             try:
                 _, products, _, _, _ = await agent.run_agent(q["text"], llm, recording)
@@ -214,7 +269,9 @@ async def replay(source: Path, out: Path) -> None:
 if __name__ == "__main__":
     if sys.argv[1] == "build":
         build()
+    elif sys.argv[1] == "build-pairs":
+        build_pairs()
     elif sys.argv[1] == "run":
-        asyncio.run(run(Path(sys.argv[2])))
+        asyncio.run(run(Path(sys.argv[2]), PAIR_QUESTIONS if sys.argv[3:] == ["pairs"] else QUESTIONS))
     else:
         asyncio.run(replay(Path(sys.argv[2]), Path(sys.argv[3])))
