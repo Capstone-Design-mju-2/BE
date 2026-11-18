@@ -1,0 +1,4710 @@
+{
+ "version": "2026-11-18",
+ "rule": "right when of the type, within the price and at least 80% of at least 30 survey answers rate the quality well; fewer answers is unknown",
+ "questions": [
+  {
+   "id": "N001",
+   "text": "보습력 좋은 크림 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 273,
+   "right": 178
+  },
+  {
+   "id": "N002",
+   "text": "촉촉한 크림 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 273,
+   "right": 178
+  },
+  {
+   "id": "N003",
+   "text": "보습력 좋은 크림 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 30000,
+   "judged": 167,
+   "right": 103
+  },
+  {
+   "id": "N004",
+   "text": "촉촉한 크림 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 30000,
+   "judged": 167,
+   "right": 103
+  },
+  {
+   "id": "N005",
+   "text": "자극 없는 크림 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 273,
+   "right": 209
+  },
+  {
+   "id": "N006",
+   "text": "순한 크림 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 273,
+   "right": 209
+  },
+  {
+   "id": "N007",
+   "text": "자극 없는 크림 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 30000,
+   "judged": 167,
+   "right": 125
+  },
+  {
+   "id": "N008",
+   "text": "순한 크림 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 30000,
+   "judged": 167,
+   "right": 125
+  },
+  {
+   "id": "N009",
+   "text": "흡수 잘 되는 크림 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 273,
+   "right": 186
+  },
+  {
+   "id": "N010",
+   "text": "빨리 흡수되는 크림 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 273,
+   "right": 186
+  },
+  {
+   "id": "N011",
+   "text": "흡수 잘 되는 크림 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 30000,
+   "judged": 167,
+   "right": 111
+  },
+  {
+   "id": "N012",
+   "text": "빨리 흡수되는 크림 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "크림",
+   "typeNames": [
+    "크림"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 30000,
+   "judged": 167,
+   "right": 111
+  },
+  {
+   "id": "N013",
+   "text": "보습력 좋은 토너 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 99,
+   "right": 41
+  },
+  {
+   "id": "N014",
+   "text": "촉촉한 토너 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 99,
+   "right": 41
+  },
+  {
+   "id": "N015",
+   "text": "보습력 좋은 토너 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 44,
+   "right": 11
+  },
+  {
+   "id": "N016",
+   "text": "촉촉한 토너 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 44,
+   "right": 11
+  },
+  {
+   "id": "N017",
+   "text": "자극 없는 토너 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 99,
+   "right": 57
+  },
+  {
+   "id": "N018",
+   "text": "순한 토너 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 99,
+   "right": 57
+  },
+  {
+   "id": "N019",
+   "text": "자극 없는 토너 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 44,
+   "right": 19
+  },
+  {
+   "id": "N020",
+   "text": "순한 토너 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 44,
+   "right": 19
+  },
+  {
+   "id": "N021",
+   "text": "흡수 잘 되는 토너 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 99,
+   "right": 61
+  },
+  {
+   "id": "N022",
+   "text": "빨리 흡수되는 토너 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 99,
+   "right": 61
+  },
+  {
+   "id": "N023",
+   "text": "흡수 잘 되는 토너 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 44,
+   "right": 23
+  },
+  {
+   "id": "N024",
+   "text": "빨리 흡수되는 토너 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너",
+   "typeNames": [
+    "토너"
+   ],
+   "excludeNames": [
+    "패드"
+   ],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 44,
+   "right": 23
+  },
+  {
+   "id": "N025",
+   "text": "보습력 좋은 세럼 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 245,
+   "right": 135
+  },
+  {
+   "id": "N026",
+   "text": "촉촉한 세럼 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 245,
+   "right": 135
+  },
+  {
+   "id": "N027",
+   "text": "보습력 좋은 세럼 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 30000,
+   "judged": 152,
+   "right": 74
+  },
+  {
+   "id": "N028",
+   "text": "촉촉한 세럼 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 30000,
+   "judged": 152,
+   "right": 74
+  },
+  {
+   "id": "N029",
+   "text": "자극 없는 세럼 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 245,
+   "right": 166
+  },
+  {
+   "id": "N030",
+   "text": "순한 세럼 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 245,
+   "right": 166
+  },
+  {
+   "id": "N031",
+   "text": "자극 없는 세럼 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 30000,
+   "judged": 152,
+   "right": 100
+  },
+  {
+   "id": "N032",
+   "text": "순한 세럼 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 30000,
+   "judged": 152,
+   "right": 100
+  },
+  {
+   "id": "N033",
+   "text": "흡수 잘 되는 세럼 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 244,
+   "right": 162
+  },
+  {
+   "id": "N034",
+   "text": "빨리 흡수되는 세럼 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 244,
+   "right": 162
+  },
+  {
+   "id": "N035",
+   "text": "흡수 잘 되는 세럼 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 30000,
+   "judged": 151,
+   "right": 95
+  },
+  {
+   "id": "N036",
+   "text": "빨리 흡수되는 세럼 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "세럼",
+   "typeNames": [
+    "세럼",
+    "앰플",
+    "에센스"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 30000,
+   "judged": 151,
+   "right": 95
+  },
+  {
+   "id": "N037",
+   "text": "보습력 좋은 로션 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 33
+  },
+  {
+   "id": "N038",
+   "text": "촉촉한 로션 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 33
+  },
+  {
+   "id": "N039",
+   "text": "보습력 좋은 로션 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 30000,
+   "judged": 39,
+   "right": 20
+  },
+  {
+   "id": "N040",
+   "text": "촉촉한 로션 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 30000,
+   "judged": 39,
+   "right": 20
+  },
+  {
+   "id": "N041",
+   "text": "자극 없는 로션 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 44
+  },
+  {
+   "id": "N042",
+   "text": "순한 로션 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 44
+  },
+  {
+   "id": "N043",
+   "text": "자극 없는 로션 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 30000,
+   "judged": 39,
+   "right": 28
+  },
+  {
+   "id": "N044",
+   "text": "순한 로션 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 30000,
+   "judged": 39,
+   "right": 28
+  },
+  {
+   "id": "N045",
+   "text": "흡수 잘 되는 로션 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 39
+  },
+  {
+   "id": "N046",
+   "text": "빨리 흡수되는 로션 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 39
+  },
+  {
+   "id": "N047",
+   "text": "흡수 잘 되는 로션 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 30000,
+   "judged": 39,
+   "right": 25
+  },
+  {
+   "id": "N048",
+   "text": "빨리 흡수되는 로션 3만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "로션",
+   "typeNames": [
+    "로션",
+    "에멀전"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 30000,
+   "judged": 39,
+   "right": 25
+  },
+  {
+   "id": "N049",
+   "text": "보습력 좋은 토너 패드 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 71,
+   "right": 49
+  },
+  {
+   "id": "N050",
+   "text": "촉촉한 토너 패드 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 71,
+   "right": 49
+  },
+  {
+   "id": "N051",
+   "text": "보습력 좋은 토너 패드 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 28,
+   "right": 16
+  },
+  {
+   "id": "N052",
+   "text": "촉촉한 토너 패드 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 28,
+   "right": 16
+  },
+  {
+   "id": "N053",
+   "text": "자극 없는 토너 패드 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 71,
+   "right": 38
+  },
+  {
+   "id": "N054",
+   "text": "순한 토너 패드 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 71,
+   "right": 38
+  },
+  {
+   "id": "N055",
+   "text": "자극 없는 토너 패드 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 28,
+   "right": 13
+  },
+  {
+   "id": "N056",
+   "text": "순한 토너 패드 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 28,
+   "right": 13
+  },
+  {
+   "id": "N057",
+   "text": "흡수 잘 되는 토너 패드 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 71,
+   "right": 46
+  },
+  {
+   "id": "N058",
+   "text": "빨리 흡수되는 토너 패드 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 71,
+   "right": 46
+  },
+  {
+   "id": "N059",
+   "text": "흡수 잘 되는 토너 패드 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 28,
+   "right": 16
+  },
+  {
+   "id": "N060",
+   "text": "빨리 흡수되는 토너 패드 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "토너 패드",
+   "typeNames": [
+    "패드"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 28,
+   "right": 16
+  },
+  {
+   "id": "N061",
+   "text": "보습력 좋은 미스트 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 31
+  },
+  {
+   "id": "N062",
+   "text": "촉촉한 미스트 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 31
+  },
+  {
+   "id": "N063",
+   "text": "보습력 좋은 미스트 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 11
+  },
+  {
+   "id": "N064",
+   "text": "촉촉한 미스트 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 11
+  },
+  {
+   "id": "N065",
+   "text": "자극 없는 미스트 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 34
+  },
+  {
+   "id": "N066",
+   "text": "순한 미스트 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 34
+  },
+  {
+   "id": "N067",
+   "text": "자극 없는 미스트 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 13
+  },
+  {
+   "id": "N068",
+   "text": "순한 미스트 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 13
+  },
+  {
+   "id": "N069",
+   "text": "흡수 잘 되는 미스트 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 33
+  },
+  {
+   "id": "N070",
+   "text": "빨리 흡수되는 미스트 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 33
+  },
+  {
+   "id": "N071",
+   "text": "흡수 잘 되는 미스트 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 13
+  },
+  {
+   "id": "N072",
+   "text": "빨리 흡수되는 미스트 2만원 이하로 추천해 줘",
+   "category": "104001",
+   "type": "미스트",
+   "typeNames": [
+    "미스트"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 13
+  },
+  {
+   "id": "N073",
+   "text": "자극 없는 선크림 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 123,
+   "right": 107
+  },
+  {
+   "id": "N074",
+   "text": "순한 선크림 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 123,
+   "right": 107
+  },
+  {
+   "id": "N075",
+   "text": "자극 없는 선크림 2만원 이하로 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 52,
+   "right": 44
+  },
+  {
+   "id": "N076",
+   "text": "순한 선크림 2만원 이하로 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 52,
+   "right": 44
+  },
+  {
+   "id": "N077",
+   "text": "끈적이지 않는 선크림 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 123,
+   "right": 36
+  },
+  {
+   "id": "N078",
+   "text": "끈적임 없는 선크림 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 123,
+   "right": 36
+  },
+  {
+   "id": "N079",
+   "text": "끈적이지 않는 선크림 2만원 이하로 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 52,
+   "right": 16
+  },
+  {
+   "id": "N080",
+   "text": "끈적임 없는 선크림 2만원 이하로 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 52,
+   "right": 16
+  },
+  {
+   "id": "N081",
+   "text": "발림성 좋은 선크림 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 123,
+   "right": 84
+  },
+  {
+   "id": "N082",
+   "text": "부드럽게 발리는 선크림 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 123,
+   "right": 84
+  },
+  {
+   "id": "N083",
+   "text": "발림성 좋은 선크림 2만원 이하로 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 52,
+   "right": 33
+  },
+  {
+   "id": "N084",
+   "text": "부드럽게 발리는 선크림 2만원 이하로 추천해 줘",
+   "category": "104002",
+   "type": "선크림",
+   "typeNames": [
+    "크림",
+    "세럼",
+    "로션",
+    "젤",
+    "에센스",
+    "플루이드"
+   ],
+   "excludeNames": [
+    "스틱",
+    "쿠션",
+    "스프레이",
+    "패치"
+   ],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 52,
+   "right": 33
+  },
+  {
+   "id": "N085",
+   "text": "보습력 좋은 클렌징 폼 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 36
+  },
+  {
+   "id": "N086",
+   "text": "촉촉한 클렌징 폼 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 36
+  },
+  {
+   "id": "N087",
+   "text": "보습력 좋은 클렌징 폼 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 48,
+   "right": 19
+  },
+  {
+   "id": "N088",
+   "text": "촉촉한 클렌징 폼 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 48,
+   "right": 19
+  },
+  {
+   "id": "N089",
+   "text": "자극 없는 클렌징 폼 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 61
+  },
+  {
+   "id": "N090",
+   "text": "순한 클렌징 폼 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 61
+  },
+  {
+   "id": "N091",
+   "text": "자극 없는 클렌징 폼 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 48,
+   "right": 35
+  },
+  {
+   "id": "N092",
+   "text": "순한 클렌징 폼 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 48,
+   "right": 35
+  },
+  {
+   "id": "N093",
+   "text": "세정력 좋은 클렌징 폼 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 59
+  },
+  {
+   "id": "N094",
+   "text": "잘 지워지는 클렌징 폼 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 59
+  },
+  {
+   "id": "N095",
+   "text": "세정력 좋은 클렌징 폼 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 48,
+   "right": 37
+  },
+  {
+   "id": "N096",
+   "text": "잘 지워지는 클렌징 폼 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 폼",
+   "typeNames": [
+    "폼"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 48,
+   "right": 37
+  },
+  {
+   "id": "N097",
+   "text": "보습력 좋은 클렌징 오일 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 20
+  },
+  {
+   "id": "N098",
+   "text": "촉촉한 클렌징 오일 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 20
+  },
+  {
+   "id": "N099",
+   "text": "보습력 좋은 클렌징 오일 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 14,
+   "right": 5
+  },
+  {
+   "id": "N100",
+   "text": "촉촉한 클렌징 오일 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 14,
+   "right": 5
+  },
+  {
+   "id": "N101",
+   "text": "자극 없는 클렌징 오일 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 30
+  },
+  {
+   "id": "N102",
+   "text": "순한 클렌징 오일 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 30
+  },
+  {
+   "id": "N103",
+   "text": "자극 없는 클렌징 오일 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 14,
+   "right": 10
+  },
+  {
+   "id": "N104",
+   "text": "순한 클렌징 오일 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 14,
+   "right": 10
+  },
+  {
+   "id": "N105",
+   "text": "세정력 좋은 클렌징 오일 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 31
+  },
+  {
+   "id": "N106",
+   "text": "잘 지워지는 클렌징 오일 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 31
+  },
+  {
+   "id": "N107",
+   "text": "세정력 좋은 클렌징 오일 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 14,
+   "right": 10
+  },
+  {
+   "id": "N108",
+   "text": "잘 지워지는 클렌징 오일 2만원 이하로 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 오일",
+   "typeNames": [
+    "오일"
+   ],
+   "excludeNames": [
+    "밤"
+   ],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 14,
+   "right": 10
+  },
+  {
+   "id": "N109",
+   "text": "보습력 좋은 클렌징 워터 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 워터",
+   "typeNames": [
+    "워터"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 12,
+   "right": 7
+  },
+  {
+   "id": "N110",
+   "text": "촉촉한 클렌징 워터 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 워터",
+   "typeNames": [
+    "워터"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 12,
+   "right": 7
+  },
+  {
+   "id": "N111",
+   "text": "보습력 좋은 클렌징 밤 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 밤",
+   "typeNames": [
+    "밤"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 15,
+   "right": 11
+  },
+  {
+   "id": "N112",
+   "text": "촉촉한 클렌징 밤 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 밤",
+   "typeNames": [
+    "밤"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 15,
+   "right": 11
+  },
+  {
+   "id": "N113",
+   "text": "자극 없는 클렌징 밤 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 밤",
+   "typeNames": [
+    "밤"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 17,
+   "right": 14
+  },
+  {
+   "id": "N114",
+   "text": "순한 클렌징 밤 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 밤",
+   "typeNames": [
+    "밤"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 17,
+   "right": 14
+  },
+  {
+   "id": "N115",
+   "text": "세정력 좋은 클렌징 밤 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 밤",
+   "typeNames": [
+    "밤"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 16,
+   "right": 13
+  },
+  {
+   "id": "N116",
+   "text": "잘 지워지는 클렌징 밤 추천해 줘",
+   "category": "104003",
+   "type": "클렌징 밤",
+   "typeNames": [
+    "밤"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 16,
+   "right": 13
+  },
+  {
+   "id": "N117",
+   "text": "자극 없는 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 107,
+   "right": 65
+  },
+  {
+   "id": "N118",
+   "text": "순한 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 107,
+   "right": 65
+  },
+  {
+   "id": "N119",
+   "text": "자극 없는 샴푸 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 40,
+   "right": 20
+  },
+  {
+   "id": "N120",
+   "text": "순한 샴푸 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 40,
+   "right": 20
+  },
+  {
+   "id": "N121",
+   "text": "향 좋은 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 111,
+   "right": 30
+  },
+  {
+   "id": "N122",
+   "text": "향이 좋다는 평이 많은 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 111,
+   "right": 30
+  },
+  {
+   "id": "N123",
+   "text": "향 좋은 샴푸 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 42,
+   "right": 7
+  },
+  {
+   "id": "N124",
+   "text": "향이 좋다는 평이 많은 샴푸 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 42,
+   "right": 7
+  },
+  {
+   "id": "N125",
+   "text": "세정력 좋은 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 97,
+   "right": 46
+  },
+  {
+   "id": "N126",
+   "text": "잘 지워지는 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 97,
+   "right": 46
+  },
+  {
+   "id": "N127",
+   "text": "세정력 좋은 샴푸 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 37,
+   "right": 16
+  },
+  {
+   "id": "N128",
+   "text": "잘 지워지는 샴푸 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "세정력",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 37,
+   "right": 16
+  },
+  {
+   "id": "N129",
+   "text": "머릿결이 좋아지는 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 20,
+   "right": 6
+  },
+  {
+   "id": "N130",
+   "text": "모발 상태가 좋아졌다는 평이 많은 샴푸 추천해 줘",
+   "category": "104006",
+   "type": "샴푸",
+   "typeNames": [
+    "샴푸"
+   ],
+   "excludeNames": [],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 20,
+   "right": 6
+  },
+  {
+   "id": "N131",
+   "text": "보습력 좋은 트리트먼트 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 28
+  },
+  {
+   "id": "N132",
+   "text": "촉촉한 트리트먼트 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 28
+  },
+  {
+   "id": "N133",
+   "text": "보습력 좋은 트리트먼트 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 9
+  },
+  {
+   "id": "N134",
+   "text": "촉촉한 트리트먼트 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 9
+  },
+  {
+   "id": "N135",
+   "text": "향 좋은 트리트먼트 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 47,
+   "right": 22
+  },
+  {
+   "id": "N136",
+   "text": "향이 좋다는 평이 많은 트리트먼트 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 47,
+   "right": 22
+  },
+  {
+   "id": "N137",
+   "text": "향 좋은 트리트먼트 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 19,
+   "right": 8
+  },
+  {
+   "id": "N138",
+   "text": "향이 좋다는 평이 많은 트리트먼트 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 19,
+   "right": 8
+  },
+  {
+   "id": "N139",
+   "text": "머릿결이 좋아지는 트리트먼트 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 31
+  },
+  {
+   "id": "N140",
+   "text": "모발 상태가 좋아졌다는 평이 많은 트리트먼트 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 45,
+   "right": 31
+  },
+  {
+   "id": "N141",
+   "text": "머릿결이 좋아지는 트리트먼트 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 10
+  },
+  {
+   "id": "N142",
+   "text": "모발 상태가 좋아졌다는 평이 많은 트리트먼트 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "트리트먼트",
+   "typeNames": [
+    "트리트먼트"
+   ],
+   "excludeNames": [
+    "샴푸"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 18,
+   "right": 10
+  },
+  {
+   "id": "N143",
+   "text": "보습력 좋은 헤어 에센스 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 16
+  },
+  {
+   "id": "N144",
+   "text": "촉촉한 헤어 에센스 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 39,
+   "right": 16
+  },
+  {
+   "id": "N145",
+   "text": "향 좋은 헤어 에센스 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 42,
+   "right": 17
+  },
+  {
+   "id": "N146",
+   "text": "향이 좋다는 평이 많은 헤어 에센스 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 42,
+   "right": 17
+  },
+  {
+   "id": "N147",
+   "text": "머릿결이 좋아지는 헤어 에센스 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 43,
+   "right": 17
+  },
+  {
+   "id": "N148",
+   "text": "모발 상태가 좋아졌다는 평이 많은 헤어 에센스 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 43,
+   "right": 17
+  },
+  {
+   "id": "N149",
+   "text": "머릿결이 좋아지는 헤어 에센스 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 20,
+   "right": 5
+  },
+  {
+   "id": "N150",
+   "text": "모발 상태가 좋아졌다는 평이 많은 헤어 에센스 2만원 이하로 추천해 줘",
+   "category": "104006",
+   "type": "헤어 에센스",
+   "typeNames": [
+    "에센스",
+    "오일",
+    "세럼"
+   ],
+   "excludeNames": [
+    "샴푸",
+    "트리트먼트"
+   ],
+   "attribute": "모발상태",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 20,
+   "right": 5
+  },
+  {
+   "id": "N151",
+   "text": "보습력 좋은 바디로션 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 23
+  },
+  {
+   "id": "N152",
+   "text": "촉촉한 바디로션 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 61,
+   "right": 23
+  },
+  {
+   "id": "N153",
+   "text": "보습력 좋은 바디로션 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 22,
+   "right": 5
+  },
+  {
+   "id": "N154",
+   "text": "촉촉한 바디로션 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 22,
+   "right": 5
+  },
+  {
+   "id": "N155",
+   "text": "끈적이지 않는 바디로션 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 54,
+   "right": 23
+  },
+  {
+   "id": "N156",
+   "text": "끈적임 없는 바디로션 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 54,
+   "right": 23
+  },
+  {
+   "id": "N157",
+   "text": "끈적이지 않는 바디로션 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 21,
+   "right": 9
+  },
+  {
+   "id": "N158",
+   "text": "끈적임 없는 바디로션 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 21,
+   "right": 9
+  },
+  {
+   "id": "N159",
+   "text": "흡수 잘 되는 바디로션 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 53,
+   "right": 27
+  },
+  {
+   "id": "N160",
+   "text": "빨리 흡수되는 바디로션 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": null,
+   "judged": 53,
+   "right": 27
+  },
+  {
+   "id": "N161",
+   "text": "흡수 잘 되는 바디로션 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 20,
+   "right": 7
+  },
+  {
+   "id": "N162",
+   "text": "빨리 흡수되는 바디로션 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디로션",
+   "typeNames": [
+    "로션"
+   ],
+   "excludeNames": [],
+   "attribute": "흡수력",
+   "good": [
+    "매우좋음",
+    "좋음",
+    "매우만족",
+    "만족"
+   ],
+   "maxPrice": 20000,
+   "judged": 20,
+   "right": 7
+  },
+  {
+   "id": "N163",
+   "text": "보습력 좋은 바디워시 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 77,
+   "right": 16
+  },
+  {
+   "id": "N164",
+   "text": "촉촉한 바디워시 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 77,
+   "right": 16
+  },
+  {
+   "id": "N165",
+   "text": "보습력 좋은 바디워시 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 40,
+   "right": 7
+  },
+  {
+   "id": "N166",
+   "text": "촉촉한 바디워시 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 40,
+   "right": 7
+  },
+  {
+   "id": "N167",
+   "text": "자극 없는 바디워시 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 69,
+   "right": 38
+  },
+  {
+   "id": "N168",
+   "text": "순한 바디워시 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 69,
+   "right": 38
+  },
+  {
+   "id": "N169",
+   "text": "자극 없는 바디워시 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 34,
+   "right": 16
+  },
+  {
+   "id": "N170",
+   "text": "순한 바디워시 2만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "바디워시",
+   "typeNames": [
+    "워시"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 34,
+   "right": 16
+  },
+  {
+   "id": "N171",
+   "text": "보습력 좋은 핸드크림 추천해 줘",
+   "category": "104007",
+   "type": "핸드크림",
+   "typeNames": [
+    "핸드크림"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 56,
+   "right": 18
+  },
+  {
+   "id": "N172",
+   "text": "촉촉한 핸드크림 추천해 줘",
+   "category": "104007",
+   "type": "핸드크림",
+   "typeNames": [
+    "핸드크림"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 56,
+   "right": 18
+  },
+  {
+   "id": "N173",
+   "text": "끈적이지 않는 핸드크림 추천해 줘",
+   "category": "104007",
+   "type": "핸드크림",
+   "typeNames": [
+    "핸드크림"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 56,
+   "right": 22
+  },
+  {
+   "id": "N174",
+   "text": "끈적임 없는 핸드크림 추천해 줘",
+   "category": "104007",
+   "type": "핸드크림",
+   "typeNames": [
+    "핸드크림"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 56,
+   "right": 22
+  },
+  {
+   "id": "N175",
+   "text": "끈적이지 않는 핸드크림 1만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "핸드크림",
+   "typeNames": [
+    "핸드크림"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 10000,
+   "judged": 15,
+   "right": 5
+  },
+  {
+   "id": "N176",
+   "text": "끈적임 없는 핸드크림 1만원 이하로 추천해 줘",
+   "category": "104007",
+   "type": "핸드크림",
+   "typeNames": [
+    "핸드크림"
+   ],
+   "excludeNames": [],
+   "attribute": "끈적임 여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 10000,
+   "judged": 15,
+   "right": 5
+  },
+  {
+   "id": "N177",
+   "text": "보습력 좋은 마스크팩 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 191,
+   "right": 31
+  },
+  {
+   "id": "N178",
+   "text": "촉촉한 마스크팩 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 191,
+   "right": 31
+  },
+  {
+   "id": "N179",
+   "text": "보습력 좋은 마스크팩 2만원 이하로 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 99,
+   "right": 14
+  },
+  {
+   "id": "N180",
+   "text": "촉촉한 마스크팩 2만원 이하로 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 99,
+   "right": 14
+  },
+  {
+   "id": "N181",
+   "text": "자극 없는 마스크팩 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 191,
+   "right": 77
+  },
+  {
+   "id": "N182",
+   "text": "순한 마스크팩 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 191,
+   "right": 77
+  },
+  {
+   "id": "N183",
+   "text": "자극 없는 마스크팩 2만원 이하로 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 99,
+   "right": 35
+  },
+  {
+   "id": "N184",
+   "text": "순한 마스크팩 2만원 이하로 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 99,
+   "right": 35
+  },
+  {
+   "id": "N185",
+   "text": "진정 효과 좋은 마스크팩 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "진정효과",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 191,
+   "right": 82
+  },
+  {
+   "id": "N186",
+   "text": "진정에 좋은 마스크팩 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "진정효과",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 191,
+   "right": 82
+  },
+  {
+   "id": "N187",
+   "text": "진정 효과 좋은 마스크팩 2만원 이하로 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "진정효과",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 20000,
+   "judged": 99,
+   "right": 38
+  },
+  {
+   "id": "N188",
+   "text": "진정에 좋은 마스크팩 2만원 이하로 추천해 줘",
+   "category": "104013",
+   "type": "마스크팩",
+   "typeNames": [
+    "마스크",
+    "팩"
+   ],
+   "excludeNames": [],
+   "attribute": "진정효과",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 20000,
+   "judged": 99,
+   "right": 38
+  },
+  {
+   "id": "N189",
+   "text": "밀착력 좋은 쿠션 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 82,
+   "right": 20
+  },
+  {
+   "id": "N190",
+   "text": "잘 밀착되는 쿠션 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 82,
+   "right": 20
+  },
+  {
+   "id": "N191",
+   "text": "밀착력 좋은 쿠션 3만원 이하로 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 30000,
+   "judged": 49,
+   "right": 15
+  },
+  {
+   "id": "N192",
+   "text": "잘 밀착되는 쿠션 3만원 이하로 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 30000,
+   "judged": 49,
+   "right": 15
+  },
+  {
+   "id": "N193",
+   "text": "커버력 좋은 쿠션 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "커버력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 12
+  },
+  {
+   "id": "N194",
+   "text": "잘 가려지는 쿠션 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "커버력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 80,
+   "right": 12
+  },
+  {
+   "id": "N195",
+   "text": "커버력 좋은 쿠션 3만원 이하로 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "커버력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 30000,
+   "judged": 47,
+   "right": 9
+  },
+  {
+   "id": "N196",
+   "text": "잘 가려지는 쿠션 3만원 이하로 추천해 줘",
+   "category": "104014",
+   "type": "쿠션",
+   "typeNames": [
+    "쿠션"
+   ],
+   "excludeNames": [],
+   "attribute": "커버력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 30000,
+   "judged": 47,
+   "right": 9
+  },
+  {
+   "id": "N197",
+   "text": "밀착력 좋은 파운데이션 추천해 줘",
+   "category": "104014",
+   "type": "파운데이션",
+   "typeNames": [
+    "파운데이션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 30,
+   "right": 9
+  },
+  {
+   "id": "N198",
+   "text": "잘 밀착되는 파운데이션 추천해 줘",
+   "category": "104014",
+   "type": "파운데이션",
+   "typeNames": [
+    "파운데이션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 30,
+   "right": 9
+  },
+  {
+   "id": "N199",
+   "text": "밀착력 좋은 파운데이션 3만원 이하로 추천해 줘",
+   "category": "104014",
+   "type": "파운데이션",
+   "typeNames": [
+    "파운데이션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 30000,
+   "judged": 16,
+   "right": 5
+  },
+  {
+   "id": "N200",
+   "text": "잘 밀착되는 파운데이션 3만원 이하로 추천해 줘",
+   "category": "104014",
+   "type": "파운데이션",
+   "typeNames": [
+    "파운데이션"
+   ],
+   "excludeNames": [],
+   "attribute": "밀착력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": 30000,
+   "judged": 16,
+   "right": 5
+  },
+  {
+   "id": "N201",
+   "text": "커버력 좋은 파운데이션 추천해 줘",
+   "category": "104014",
+   "type": "파운데이션",
+   "typeNames": [
+    "파운데이션"
+   ],
+   "excludeNames": [],
+   "attribute": "커버력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 30,
+   "right": 5
+  },
+  {
+   "id": "N202",
+   "text": "잘 가려지는 파운데이션 추천해 줘",
+   "category": "104014",
+   "type": "파운데이션",
+   "typeNames": [
+    "파운데이션"
+   ],
+   "excludeNames": [],
+   "attribute": "커버력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 30,
+   "right": 5
+  },
+  {
+   "id": "N203",
+   "text": "보습력 좋은 립밤 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 34,
+   "right": 10
+  },
+  {
+   "id": "N204",
+   "text": "촉촉한 립밤 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 34,
+   "right": 10
+  },
+  {
+   "id": "N205",
+   "text": "보습력 좋은 립밤 2만원 이하로 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 25,
+   "right": 8
+  },
+  {
+   "id": "N206",
+   "text": "촉촉한 립밤 2만원 이하로 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "보습력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 25,
+   "right": 8
+  },
+  {
+   "id": "N207",
+   "text": "발림성 좋은 립밤 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 34,
+   "right": 10
+  },
+  {
+   "id": "N208",
+   "text": "부드럽게 발리는 립밤 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 34,
+   "right": 10
+  },
+  {
+   "id": "N209",
+   "text": "발림성 좋은 립밤 2만원 이하로 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 25,
+   "right": 6
+  },
+  {
+   "id": "N210",
+   "text": "부드럽게 발리는 립밤 2만원 이하로 추천해 줘",
+   "category": "104015",
+   "type": "립밤",
+   "typeNames": [
+    "립밤"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 20000,
+   "judged": 25,
+   "right": 6
+  },
+  {
+   "id": "N211",
+   "text": "발림성 좋은 틴트 추천해 줘",
+   "category": "104015",
+   "type": "틴트",
+   "typeNames": [
+    "틴트"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 106,
+   "right": 46
+  },
+  {
+   "id": "N212",
+   "text": "부드럽게 발리는 틴트 추천해 줘",
+   "category": "104015",
+   "type": "틴트",
+   "typeNames": [
+    "틴트"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 106,
+   "right": 46
+  },
+  {
+   "id": "N213",
+   "text": "발림성 좋은 틴트 1만원 이하로 추천해 줘",
+   "category": "104015",
+   "type": "틴트",
+   "typeNames": [
+    "틴트"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 10000,
+   "judged": 25,
+   "right": 5
+  },
+  {
+   "id": "N214",
+   "text": "부드럽게 발리는 틴트 1만원 이하로 추천해 줘",
+   "category": "104015",
+   "type": "틴트",
+   "typeNames": [
+    "틴트"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 10000,
+   "judged": 25,
+   "right": 5
+  },
+  {
+   "id": "N215",
+   "text": "발색 좋은 틴트 추천해 줘",
+   "category": "104015",
+   "type": "틴트",
+   "typeNames": [
+    "틴트"
+   ],
+   "excludeNames": [],
+   "attribute": "발색력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 101,
+   "right": 15
+  },
+  {
+   "id": "N216",
+   "text": "발색력 좋은 틴트 추천해 줘",
+   "category": "104015",
+   "type": "틴트",
+   "typeNames": [
+    "틴트"
+   ],
+   "excludeNames": [],
+   "attribute": "발색력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 101,
+   "right": 15
+  },
+  {
+   "id": "N217",
+   "text": "발림성 좋은 립스틱 추천해 줘",
+   "category": "104015",
+   "type": "립스틱",
+   "typeNames": [
+    "립스틱"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 13,
+   "right": 5
+  },
+  {
+   "id": "N218",
+   "text": "부드럽게 발리는 립스틱 추천해 줘",
+   "category": "104015",
+   "type": "립스틱",
+   "typeNames": [
+    "립스틱"
+   ],
+   "excludeNames": [],
+   "attribute": "발림성",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 13,
+   "right": 5
+  },
+  {
+   "id": "N219",
+   "text": "자극 없는 아이섀도우 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 81,
+   "right": 48
+  },
+  {
+   "id": "N220",
+   "text": "순한 아이섀도우 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": null,
+   "judged": 81,
+   "right": 48
+  },
+  {
+   "id": "N221",
+   "text": "자극 없는 아이섀도우 2만원 이하로 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 32,
+   "right": 21
+  },
+  {
+   "id": "N222",
+   "text": "순한 아이섀도우 2만원 이하로 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "자극여부",
+   "good": [
+    "전혀없음",
+    "거의없음"
+   ],
+   "maxPrice": 20000,
+   "judged": 32,
+   "right": 21
+  },
+  {
+   "id": "N223",
+   "text": "지속력 좋은 아이섀도우 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "지속력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 81,
+   "right": 7
+  },
+  {
+   "id": "N224",
+   "text": "오래 가는 아이섀도우 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "지속력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 81,
+   "right": 7
+  },
+  {
+   "id": "N225",
+   "text": "발색 좋은 아이섀도우 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "발색력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 81,
+   "right": 14
+  },
+  {
+   "id": "N226",
+   "text": "발색력 좋은 아이섀도우 추천해 줘",
+   "category": "104016",
+   "type": "아이섀도우",
+   "typeNames": [
+    "섀도우",
+    "팔레트"
+   ],
+   "excludeNames": [],
+   "attribute": "발색력",
+   "good": [
+    "매우높음",
+    "높음"
+   ],
+   "maxPrice": null,
+   "judged": 81,
+   "right": 14
+  },
+  {
+   "id": "N227",
+   "text": "지속력 좋은 향수 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "지속력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 119,
+   "right": 16
+  },
+  {
+   "id": "N228",
+   "text": "오래 가는 향수 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "지속력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 119,
+   "right": 16
+  },
+  {
+   "id": "N229",
+   "text": "지속력 좋은 향수 4만원 이하로 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "지속력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 40000,
+   "judged": 64,
+   "right": 7
+  },
+  {
+   "id": "N230",
+   "text": "오래 가는 향수 4만원 이하로 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "지속력",
+   "good": [
+    "매우높음",
+    "높음",
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 40000,
+   "judged": 64,
+   "right": 7
+  },
+  {
+   "id": "N231",
+   "text": "향 좋은 향수 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 119,
+   "right": 89
+  },
+  {
+   "id": "N232",
+   "text": "향이 좋다는 평이 많은 향수 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": null,
+   "judged": 119,
+   "right": 89
+  },
+  {
+   "id": "N233",
+   "text": "향 좋은 향수 4만원 이하로 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 40000,
+   "judged": 64,
+   "right": 42
+  },
+  {
+   "id": "N234",
+   "text": "향이 좋다는 평이 많은 향수 4만원 이하로 추천해 줘",
+   "category": "104005",
+   "type": "향수",
+   "typeNames": [
+    "퍼퓸",
+    "향수",
+    "오드"
+   ],
+   "excludeNames": [],
+   "attribute": "향 만족도",
+   "good": [
+    "매우좋음",
+    "좋음"
+   ],
+   "maxPrice": 40000,
+   "judged": 64,
+   "right": 42
+  }
+ ]
+}

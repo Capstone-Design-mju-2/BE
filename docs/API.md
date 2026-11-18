@@ -302,6 +302,18 @@ GET /internal/products/images?ids=101&ids=102
 - 없는 상품은 빠지고, 순서는 `ids`와 다를 수 있다. 사진이 없는 상품은 두 필드가 `null`이다.
 - `ids`는 1~20개다. 없거나 20개를 넘으면 400이다.
 
+### 구매자 설문과 리뷰 수 조회 (search-mcp 전용)
+
+```text
+GET /internal/products/survey?ids=101&ids=102&attribute=끈적임 여부
+```
+
+응답: `{ "surveys": [{ "productId": 101, "reviewCount": 2439, "answers": { "전혀없음": 120, "거의없음": 40, "보통": 12 } }] }`. OpenSearch 검색 경로가 찾은 상품을 구매자 설문의 응답 비율이나 리뷰 수로 다시 줄 세울 때 부른다(ADR-177).
+
+- `answers`는 무신사 리뷰 설문에서 그 항목(`attribute`)에 구매자가 고른 답과 그 수다. 답의 띄어쓰기는 없애고 센다. `attribute`가 없거나 그 항목에 답이 없는 상품은 빈 객체다.
+- `reviewCount`는 수집 당시 무신사의 전체 리뷰 수다.
+- 없는 상품은 빠지고, 순서는 `ids`와 다를 수 있다. `ids`는 1~20개다. 없거나 20개를 넘으면 400이다.
+
 ## 3. Inventory API
 
 ```text

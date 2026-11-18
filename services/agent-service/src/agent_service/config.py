@@ -15,7 +15,8 @@ class Settings(BaseSettings):
         default="http://localhost:8082",
         validation_alias="ORDER_SERVICE_URL",
     )
-    # What search-mcp searches (ADR-102): "catalog" for review text in the catalog DB, "opensearch" for review vectors.
+    # What search-mcp searches (ADR-102): "catalog" for review text in the catalog DB, "opensearch" for review vectors,
+    # "hybrid" for the vectors and the review text in OpenSearch together (ADR-174).
     search_backend: str = Field(default="catalog", validation_alias="SEARCH_BACKEND")
     opensearch_url: str = Field(default="http://localhost:9200", validation_alias="OPENSEARCH_URL")
     # Any OpenAI-compatible chat completions API (ADR-91). Without a key the agent answers with the 1B rules.

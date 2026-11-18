@@ -45,6 +45,7 @@ KEYWORD_QUERY = """- search_products로 상품을 찾는다. q에는 띄어쓰�
 # Vector search compares q with whole reviews, so what a review would say about the product belongs in q (ADR-98).
 SEMANTIC_QUERY = """- search_products로 상품을 찾는다. q에는 질문이 찾는 상품 유형과 리뷰에 나올 만한 조건(피부 타입, 사용감, 효과 등)을 질문에 쓰인 말로 한 문장에 넣는다. 가격·카테고리·브랜드·성분 조건은 q에 넣지 않고 각 인자에 넣는다. 가격 조건이 있으면 max_price에 원 단위 정수로 넣는다.
 - 질문에 상품 유형이 있으면 product_types에 그 유형을 상품명에 쓰이는 짧은 말로 넣고, 같은 유형을 부르는 다른 말이 있으면 함께 넣는다. 꾸미는 말은 뺀다(수분크림이면 크림).
+- 질문이 묻는 품질이 rank_by의 구매자 설문 항목 가운데 하나에 해당하면 rank_by에 그 항목을 넣고, 인기 있는 상품을 물으면 '리뷰 수'를 넣는다. 해당하는 항목이 없으면 넣지 않는다. 다시 검색할 때도 rank_by는 바꾸지 않는다.
 - 검색 결과를 받으면 질문에 맞는지 먼저 본다. 상품이 3개보다 적거나, 질문이 찾는 상품 유형이 아닌 상품이 절반을 넘으면 q나 product_types를 다른 말로 고쳐 search_products를 한 번 더 부른다. 가격·카테고리·브랜드·성분 조건은 바꾸지 않는다. similarity(0~1)는 상품마다 가장 가까운 리뷰가 q와 얼마나 가까운지 보여 주는 참고 값이다. 다시 검색은 한 번까지이고, 카드는 마지막 검색 결과로 만든다.
 - 그다음 상품마다 근거 발췌가 질문의 조건(피부 타입, 사용감, 효과 등. 가격·카테고리·브랜드·성분은 빼고)을 말하는지 본다. 말하지 않는 조건이 있으면 다시 검색하지 말고 search_product_reviews에 그 상품의 productId와 그 조건을 리뷰에 쓰일 짧은 말(예: 진정, 끈적이지 않음)로 넣어 그 상품의 리뷰를 더 찾는다. 여러 상품을 한 번에 불러도 된다. 찾은 리뷰의 발췌도 그 상품의 근거로 쓸 수 있다. reason에는 근거로 쓴 발췌의 구절을 작은따옴표로 그대로 인용하고, 인용하지 않은 리뷰의 내용은 쓰지 않는다. 카드에는 인용한 리뷰만 근거로 나간다. 다시 검색과 search_product_reviews는 check_inventory보다 먼저 한다."""
 # An alternative searches the first answer's conditions whatever the LLM asks for (ADR-131), so a second search
@@ -53,7 +54,7 @@ PINNED_CONDITIONS = "\n- 이번 요청은 검색 조건이 정해져 있어 다�
 # Some chats kept calling tools after the inventory check until the rounds ran out, and tool_choice "none" came back
 # empty through the OpenAI-compatible endpoint (ADR-136).
 LAST_ROUND = "이제 도구를 더 부를 수 없다. 지금까지 받은 결과로 마지막 답 JSON만 쓴다."
-QUERY = SEMANTIC_QUERY if settings.search_backend == "opensearch" else KEYWORD_QUERY
+QUERY = SEMANTIC_QUERY if settings.search_backend in ("opensearch", "hybrid") else KEYWORD_QUERY
 SPLIT_RULE = "- 질문이 서로 다른 상품 유형을 둘 이상 찾으면(예: 토너랑 선크림) 처음에 search_products 대신 split_search를 한 번 부른다. 그 뒤에는 검색하지 않고, 받은 상품 전부로 check_inventory를 부른 다음 답한다. 하위 에이전트가 쓴 reason은 그대로 써도 된다."
 FILTER_RULES = """- 질문이 찾는 상품의 카테고리가 분명하면 category에 그 카테고리 이름을, 브랜드를 말하면 brand에 브랜드 이름을 넣는다. 분명하지 않으면 비워 둔다.
 - 질문이 어떤 성분이 빠진 상품을 원하면 exclude_ingredients에 그 성분을 넣는다."""
