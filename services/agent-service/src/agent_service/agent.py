@@ -34,6 +34,8 @@ SEARCH_ONLY_FIELDS = {"similarity"}
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
+# The low-rated review a card shows beside its evidence; reasons are written from the evidence alone (ADR-179).
+CARD_ONLY_FIELDS = IMAGE_FIELDS | {"criticalReview"}
 # Read only here to show a product once (ADR-172); neither the LLM nor the cards need it.
 AGENT_ONLY_FIELDS = {"sameProductId"}
 QUOTE = re.compile(r"['‘\"“]([^'’\"”]{2,})['’\"”]")
@@ -110,7 +112,9 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
             message, llm, tools, trace, skin_type, deadline or time.monotonic() + llm.timeout, conditions, exclude)
         trace.update(answer=answer, reasons={
             str(product_id): {"reason": reason, "inSearch": product_id in {p["productId"] for p in products},
-                              "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), [])}
+                              "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), []),
+                              "criticalReview": next((p.get("criticalReview") for p in products
+                                                      if p["productId"] == product_id), None)}
             for product_id, reason in reasons.items()
         })
         return answer, products, inventories, reasons, searched
@@ -230,7 +234,7 @@ async def _split(raw_arguments: str, llm: Llm, tools: McpTools, trace: dict[str,
         merged += kept
         reasons.update({p["productId"]: found_reasons[p["productId"]] for p in kept if p["productId"] in found_reasons})
         shown.append({"part": part, "products": [
-            {**{k: v for k, v in p.items() if k not in IMAGE_FIELDS | AGENT_ONLY_FIELDS},
+            {**{k: v for k, v in p.items() if k not in CARD_ONLY_FIELDS | AGENT_ONLY_FIELDS},
              "reason": found_reasons.get(p["productId"])}
             for p in kept]})
     if not merged:
@@ -375,11 +379,11 @@ def quotes(excerpt: str, quote: str) -> bool:
 
 
 def _shown_to_llm(result: dict[str, Any]) -> dict[str, Any]:
-    """Image addresses are for the cards and same-product marks for the agent; on every search they would only cost the
-    LLM tokens (ADR-127, ADR-172)."""
+    """Image addresses and the low-rated review are for the cards and same-product marks for the agent; on every search
+    they would only cost the LLM tokens (ADR-127, ADR-172, ADR-179)."""
     if "products" not in result:
         return result
-    return {**result, "products": [{k: v for k, v in p.items() if k not in IMAGE_FIELDS | AGENT_ONLY_FIELDS}
+    return {**result, "products": [{k: v for k, v in p.items() if k not in CARD_ONLY_FIELDS | AGENT_ONLY_FIELDS}
                                    for p in result["products"]]}
 
 
@@ -428,7 +432,7 @@ def cards(products: list[dict], inventories: dict[int, dict], reasons: dict[int,
         # The contract never allows a reason without evidence to back it.
         reason = reasons.get(product["productId"]) if product["evidence"] else None
         card = {k: v for k, v in product.items() if k not in SEARCH_ONLY_FIELDS | AGENT_ONLY_FIELDS}
-        result.append({**card, "reason": reason, "inventory": inventory})
+        result.append({"criticalReview": None, **card, "reason": reason, "inventory": inventory})
     return result
 
 

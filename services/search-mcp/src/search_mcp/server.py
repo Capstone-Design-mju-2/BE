@@ -54,6 +54,12 @@ RankBy = Literal["자극여부", "보습력", "지속력", "흡수력", "발림�
 # Products the survey ranks before the best `limit` are kept: the right ones are among the first 20 found far more
 # often than among the first 5 (ADR-177).
 RANK_POOL = 20
+# 331 of 356 cited reviews were rated 5 and none below 3, so each card also gets one of its product's reviews rated
+# 1 to 3, where the complaints are (ADR-179).
+LOW_RATED = {"range": {"grade": {"lte": 3}}}
+CRITICAL_POOL = 5
+# Of the low-rated reviews closest to a question 45% stated a downside, of those using one of these words 87%.
+COMPLAINT_WORDS = ["아쉬", "별로", "단점", "다만", "실망", "불편", "안 맞", "안맞", "글쎄", "모르겠", "그닥", "그다지"]
 # Survey answers that do not rate an item well, spaces removed. Every other answer of the items above does.
 SURVEY_NOT_GOOD = {"보통", "낮음", "매우낮음", "나쁨", "매우나쁨", "약간있음", "매우있음", "조금있음", "눈에띄게있음",
                    "심하게있음", "아쉬움", "매우아쉬움", "불편함", "어려움", "매우어려움", "번거로움", "번거러움", "부각됨",
@@ -200,9 +206,13 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     else:
         products = (await by_survey(group_by_product(reviews, max(limit, RANK_POOL)), rank_by))[:limit]
     # skin_type is left out of the docstring the LLM reads: the agent fills it from the chat request (ADR-120, ADR-134).
+    ids = [p["productId"] for p in products]
     if skin_type is not None and products:
-        found = await closest_of_skin_type(vector, [p["productId"] for p in products], skin_type)
+        found = await closest_per_product(vector, ids, {"term": {"skin_type": skin_type}}, 2)
         products = [with_skin_type(product, closest) for product, closest in zip(products, found)]
+    if products:
+        low = await closest_per_product(vector, ids, LOW_RATED, CRITICAL_POOL)
+        products = [{**p, "criticalReview": critical(pool)} for p, pool in zip(products, low)]
     return {"products": await with_catalog_fields(products)}
 
 
@@ -285,14 +295,15 @@ async def with_catalog_fields(products: list[dict]) -> list[dict]:
              "sameProductId": images.get(p["productId"], {}).get("sameProductId")} for p in products]
 
 
-async def closest_of_skin_type(vector: list[float], product_ids: list[int], skin_type: str) -> list[list[dict]]:
-    """Each product's two reviews closest to q among those by writers of skin_type, in one request."""
+async def closest_per_product(vector: list[float], product_ids: list[int], condition: dict,
+                              size: int) -> list[list[dict]]:
+    """Each product's reviews closest to q among those meeting condition, in one request."""
     lines = []
     for product_id in product_ids:
-        knn = {"vector": vector, "k": 2, "filter": {"bool": {"filter": [
-            {"term": {"product_id": product_id}}, {"term": {"skin_type": skin_type}}]}}}
+        knn = {"vector": vector, "k": size, "filter": {"bool": {"filter": [
+            {"term": {"product_id": product_id}}, condition]}}}
         lines += [json.dumps({"index": OPENSEARCH_INDEX}),
-                  json.dumps({"size": 2, "_source": ["review_id", "content", "grade", "skin_type"],
+                  json.dumps({"size": size, "_source": ["review_id", "content", "grade", "skin_type"],
                               "query": {"knn": {"embedding": knn}}})]
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(f"{OPENSEARCH_URL}/_msearch", content="\n".join(lines) + "\n",
@@ -438,6 +449,22 @@ def with_skin_type(product: dict, found: list[dict]) -> dict:
     picked = [evidence(review) for review in found]
     ids = {e["reviewId"] for e in picked}
     return {**product, "evidence": (picked + [e for e in product["evidence"] if e["reviewId"] not in ids])[:2]}
+
+
+def critical(reviews: list[dict]) -> dict | None:
+    """The closest review that words a complaint, its excerpt opening near that word. None when no review does: a low
+    rating alone seldom comes with a stated downside (ADR-179).
+
+    >>> reviews = [{"review_id": 1, "content": "촉촉하고 좋아요", "grade": 3},
+    ...            {"review_id": 2, "content": "향이 별로예요", "grade": 2}]
+    >>> critical(reviews)["reviewId"], critical(reviews[:1])
+    (2, None)
+    """
+    for review in reviews:
+        words = [word for word in COMPLAINT_WORDS if word in review["content"]]
+        if words:
+            return evidence(review, " ".join(words))
+    return None
 
 
 def evidence(review: dict, q: str | None = None) -> dict:
