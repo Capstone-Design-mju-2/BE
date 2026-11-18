@@ -57,6 +57,7 @@ POST /api/v1/chat
         { "reviewId": 9001, "rating": 5, "excerpt": "건성인데 아침까지 당김 없이 촉촉해요", "skinType": "dry" },
         { "reviewId": 9037, "rating": 4, "excerpt": "바르고 나서 끈적임이 거의 없어요", "skinType": null }
       ],
+      "criticalReview": { "reviewId": 9102, "rating": 2, "excerpt": "저한테는 좀 끈적이고 흡수가 느려요", "skinType": "oily" },
       "inventory": {
         "status": "IN_STOCK",
         "quantity": 12,
@@ -80,6 +81,8 @@ POST /api/v1/chat
 `reason`은 LLM이 `evidence`를 읽고 쓴다. `evidence` 없이 생성하지 않는다. 생성 문장과 원본 리뷰를 함께 남겨야 오작동률을 측정할 수 있다.
 
 `evidence` 항목마다 그 리뷰 작성자의 `skinType`을 붙인다. 작성자가 고르지 않은 리뷰는 `null`이고, 값은 리뷰 조회의 `skinType`과 같다.
+
+`criticalReview`는 그 상품의 별점 1~3점 리뷰 중 질문과 가까운 다섯 개에서, 아쉬움을 말하는 단어(아쉬, 별로, 다만 등)가 있는 가장 가까운 리뷰 하나다(ADR-179). 모양은 `evidence` 항목과 같고 `excerpt`는 그 단어 근처에서 시작한다. 좋은 근거만 보이는 카드에 아쉬운 점을 함께 보여 주려는 값이고, `evidence`와 `reason`은 이 값과 무관하게 정해진다. 그런 리뷰가 없거나 검색 경로가 OpenSearch가 아니면 `null`이다. 기존 질문 21개의 카드 310장 중 152장에 값이 있었다. LLM에게 넘기는 검색 결과에서는 뺀다.
 
 `imageUrl`과 `thumbnailUrl`은 catalog 검색 응답 그대로다(2절). LLM에게 넘기는 검색 결과에서는 뺀다. 답에 쓰이지 않고 토큰만 늘기 때문이다. 검색 경로가 OpenSearch이면 리뷰 색인에 사진 주소가 없어 search-mcp가 catalog에 따로 묻고, catalog가 답하지 않으면 두 필드가 `null`이다(ADR-151).
 
