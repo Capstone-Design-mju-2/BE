@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -7,6 +8,12 @@ from typing import Any, Literal
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pydantic import BaseModel, Field
 
 from agent_service.agent import cards, inventory_by_id, run_agent, search
@@ -32,6 +39,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Capstone Agent Service", version="0.1.0", lifespan=lifespan)
+# Spans go to OTEL_EXPORTER_OTLP_ENDPOINT under OTEL_SERVICE_NAME; left unset, tracing does nothing (ADR-182).
+if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+    provider = TracerProvider()
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    trace.set_tracer_provider(provider)
+    HTTPXClientInstrumentor().instrument()
+    FastAPIInstrumentor.instrument_app(app)
 
 
 class ChatRequest(BaseModel):

@@ -3,6 +3,11 @@ from typing import Any
 
 import httpx
 from mcp.server.mcpserver import MCPServer
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 ORDER_SERVICE_URL = os.getenv("ORDER_SERVICE_URL", "http://localhost:8082")
 
@@ -34,7 +39,17 @@ async def check_inventory(product_ids: list[int]) -> dict[str, Any]:
         return response.json()
 
 
+def export_traces() -> None:
+    """Send spans to OTEL_EXPORTER_OTLP_ENDPOINT under OTEL_SERVICE_NAME; left unset, tracing does nothing (ADR-182)."""
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        provider = TracerProvider()
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        trace.set_tracer_provider(provider)
+        HTTPXClientInstrumentor().instrument()
+
+
 def main() -> None:
+    export_traces()
     server.run(transport="stdio")
 
 

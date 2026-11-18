@@ -112,6 +112,15 @@ class _Session:
             return result.structured_content
 
 
+def _tracing(service: str) -> dict[str, str]:
+    """Where a child sends its spans and the name it sends them under, when this process exports any (ADR-182).
+
+    The MCP SDK carries the trace context in each call, so a child's spans join the chat that made the call.
+    """
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    return {"OTEL_EXPORTER_OTLP_ENDPOINT": endpoint, "OTEL_SERVICE_NAME": service} if endpoint else {}
+
+
 class McpTools:
     def __init__(self) -> None:
         # A child gets only the environment given here, so the model cache settings (HF_HOME, HF_HUB_OFFLINE in the
@@ -119,8 +128,10 @@ class McpTools:
         self._search = _Session("search-mcp", {"CATALOG_SERVICE_URL": settings.catalog_service_url,
                                                "SEARCH_BACKEND": settings.search_backend,
                                                "OPENSEARCH_URL": settings.opensearch_url,
-                                               **{k: v for k, v in os.environ.items() if k.startswith("HF_")}})
-        self._inventory = _Session("inventory-mcp", {"ORDER_SERVICE_URL": settings.order_service_url})
+                                               **{k: v for k, v in os.environ.items() if k.startswith("HF_")},
+                                               **_tracing("search-mcp")})
+        self._inventory = _Session("inventory-mcp", {"ORDER_SERVICE_URL": settings.order_service_url,
+                                                     **_tracing("inventory-mcp")})
 
     async def __aenter__(self) -> "McpTools":
         try:

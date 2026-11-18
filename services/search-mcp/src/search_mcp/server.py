@@ -8,6 +8,11 @@ from typing import Any, Literal
 
 import httpx
 from mcp.server.mcpserver import MCPServer
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 CATALOG_SERVICE_URL = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8081")
 # "catalog" searches review text in the catalog DB; "opensearch" searches review vectors (ADR-102); "hybrid" searches
@@ -73,6 +78,9 @@ SET_MARKS = ["세트", "SET", "Set", "2종", "3종", "+"]
 SURVEY_PRIOR, SURVEY_PRIOR_WEIGHT = 0.8, 10
 
 
+tracer = trace.get_tracer("search-mcp")
+
+
 def _embedder() -> Callable[[str], list[float]]:
     if QUERY_VECTORS:
         vectors = json.loads(Path(QUERY_VECTORS).read_text(encoding="utf-8"))
@@ -82,7 +90,12 @@ def _embedder() -> Callable[[str], list[float]]:
 
     # Loaded at start, about 10 s on an M2 (ADR-102), so the first search does not pay for it.
     model = SentenceTransformer("BAAI/bge-m3", device="mps" if torch.backends.mps.is_available() else "cpu")
-    return lambda q: model.encode(q, normalize_embeddings=True).tolist()
+
+    def encode(q: str) -> list[float]:
+        with tracer.start_as_current_span("embed"):
+            return model.encode(q, normalize_embeddings=True).tolist()
+
+    return encode
 
 
 embed = _embedder() if VECTORS else None
@@ -478,7 +491,17 @@ def anchor(text: str, words: list[str]) -> int:
     return -1
 
 
+def export_traces() -> None:
+    """Send spans to OTEL_EXPORTER_OTLP_ENDPOINT under OTEL_SERVICE_NAME; left unset, tracing does nothing (ADR-182)."""
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        provider = TracerProvider()
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        trace.set_tracer_provider(provider)
+        HTTPXClientInstrumentor().instrument()
+
+
 def main() -> None:
+    export_traces()
     server.run(transport="stdio")
 
 

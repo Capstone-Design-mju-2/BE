@@ -97,6 +97,17 @@ services:
     mem_limit: 1g
     restart: unless-stopped
 
+  # Trace viewer (ADR-182), started with `docker compose --profile tracing up -d jaeger`. Spans arrive over OTLP on
+  # 4318 and the UI is on 16686. Traces are kept in memory and lost on restart.
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    profiles: ["tracing"]
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4318:4318"
+    mem_limit: 512m
+    restart: unless-stopped
+
   # Review vectors for semantic search (ADR-98, ADR-101). 800k reviews at 16-bit need about 1.64 GiB of native memory
   # outside the 1 GiB heap, and the node used 3.87 GiB once they were loaded: at 4 GiB the kernel killed it under 10
   # concurrent searches. The k-NN breaker's default 50% of what the heap leaves measured as too small for them.
