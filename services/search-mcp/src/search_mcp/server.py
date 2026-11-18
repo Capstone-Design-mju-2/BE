@@ -96,6 +96,8 @@ def _embedder() -> Callable[[str], list[float]]:
 
     # Loaded at start, about 10 s on an M2 (ADR-102), so the first search does not pay for it.
     model = SentenceTransformer("BAAI/bge-m3", device="mps" if torch.backends.mps.is_available() else "cpu")
+    # Nor for the first encoding: 7.9 s on the demo server right after a start, 0.2 to 0.3 s from then on (ADR-183).
+    model.encode("수분크림", normalize_embeddings=True)
 
     def encode(q: str) -> list[float]:
         with tracer.start_as_current_span("embed"):

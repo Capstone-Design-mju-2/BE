@@ -12,7 +12,9 @@ from agent_service.config import settings
 
 logger = logging.getLogger(__name__)
 
-START_TIMEOUT_SECONDS = 30
+# The search server loads its model and encodes once before it is ready (ADR-183): 16 s on the demo server before the
+# encoding was added, which takes about 8 s more.
+START_TIMEOUT_SECONDS = 60
 STOP_TIMEOUT_SECONDS = 10
 RECONNECT_WAIT_SECONDS = 10
 CALL_TIMEOUT_SECONDS = 35  # must stay above the tools' own 30 s HTTP timeout, or a slow but healthy server is restarted
