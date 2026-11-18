@@ -129,6 +129,8 @@ python3 scripts/index_review_text.py   # 리뷰 80만 개, 약 2분, 0.4GiB
 
 검색 방식 비교에는 정답을 리뷰 설문으로 계산하는 질문 234개를 쓴다(`eval/quant.py`, ADR-176). 판정이 필요 없어서 검색이 바뀌어도 바로 다시 채점할 수 있다. `run`은 질문을 한 번씩 물어 LLM이 고른 검색 인자를 저장하고, `replay`는 그 인자를 LLM 없이 다시 넣어 검색 방식만 바꿔 비교한다. 기존 품질 질문 21개(`eval/run_llm.py`)의 주 지표는 정밀도@5다(ADR-173).
 
+설문 항목 두 개를 함께 묻는 질문 95개도 있다(`eval/quant-pair-questions.json`, `build-pairs`로 만듦). 두 항목 모두 같은 규칙으로 좋게 평가받아야 정답이고, 하나라도 기준에 못 미치면 오답이다. `run <결과 파일> pairs`로 돌린다(약 15분).
+
 ```bash
 uv run --package agent-service python eval/quant.py build                                  # 질문 만들기
 uv run --package agent-service python eval/quant.py run .local/eval/quant/vector.json      # 질문 234개, 약 35분
