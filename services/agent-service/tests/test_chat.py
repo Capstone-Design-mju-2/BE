@@ -39,6 +39,8 @@ class FakeTools:
         self.skin_types = []
         self.searched = []
         self.reviews = {}
+        # rank_evidence's result, an exception to raise, or None when the tool is not served.
+        self.ranked = None
 
     async def search_products(self, q, max_price, limit, skin_type=None):
         self.calls.append(("search_products", q, max_price, limit))
@@ -65,6 +67,11 @@ class FakeTools:
         if name == "search_product_reviews":
             self.calls.append((name, arguments["product_id"], arguments["q"]))
             return {"productId": arguments["product_id"], "reviews": self.reviews.get(arguments["product_id"], [])}
+        if name == "rank_evidence" and self.ranked is not None:
+            self.calls.append((name, arguments["product_ids"], arguments["q"], arguments.get("skin_type")))
+            if isinstance(self.ranked, Exception):
+                raise self.ranked
+            return self.ranked
         raise ToolError(f"{name} is not a tool")
 
 
@@ -465,6 +472,47 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual(body["answer"], "찾았어요.")
         self.assertEqual(llm.requests[-1][-1], {"role": "user", "content": agent.LAST_ROUND})
         self.assertEqual(llm.requests[-2][-1]["role"], "tool")
+
+    def test_검색_뒤_카드_근거는_다시_고른_리뷰이고_LLM도_그_근거를_본다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "끈적이지 않는 수분크림"}),
+                      tool_call("check_inventory", {"product_ids": [1, 2, 3]}),
+                      final("골랐어요.", {"1": "'끈적이지 않고 촉촉해요'라는 리뷰가 있어요."}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        tools.ranked = {"products": [
+            {"productId": 1, "evidence": [{"reviewId": 12, "rating": 5, "excerpt": "끈적이지 않고 촉촉해요"}]},
+            {"productId": 2, "evidence": []}]}
+        body = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": "dry"}).json()
+
+        self.assertIn(("rank_evidence", [1, 2, 3], "끈적이지 않는 수분크림", "dry"), tools.calls)
+        # A product it found no review for keeps the search's evidence: the screen rejects a card without one.
+        self.assertEqual({p["productId"]: [e["reviewId"] for e in p["evidence"]] for p in body["products"]},
+                         {1: [12], 2: [21]})
+        shown = json.loads(llm.requests[1][-1]["content"])["products"]
+        self.assertEqual([e["reviewId"] for e in shown[0]["evidence"]], [12])
+
+    def test_근거를_다시_고르지_못하면_검색의_근거를_그대로_쓴다(self):
+        tools = serve(SEARCH, INVENTORY, FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {})))
+        tools.ranked = ToolError("rank_evidence could not be called")
+        body = self.chat().json()
+
+        self.assertEqual([[e["reviewId"] for e in p["evidence"]] for p in body["products"]], [[11], [21], [31]])
+
+    def test_나눠_찾기의_하위_검색은_근거를_다시_고르지_않는다(self):
+        llm = SplitLlm(tool_call("split_search", {"parts": ["건성용 토너", "수분크림"]}),
+                       tool_call("check_inventory", {"product_ids": [10, 11, 12, 20, 21]}),
+                       final("둘 다 찾았어요.", {}))
+        tools = serve(products_for, INVENTORY, llm)
+        tools.ranked = {"products": []}
+        self.chat("건성용 토너랑 수분크림 추천해 줘")
+
+        self.assertEqual([c for c in tools.calls if c[0] == "rank_evidence"], [])
+
+    def test_규칙_답은_근거를_다시_고르지_않는다(self):
+        tools = serve(SEARCH, INVENTORY, FakeLlm(LlmError("429")))
+        tools.ranked = {"products": []}
+        self.chat()
+
+        self.assertEqual([c for c in tools.calls if c[0] == "rank_evidence"], [])
 
     def test_나눠_찾으면_하위_에이전트의_상품을_3개와_2개로_합치고_검색_조건은_null이다(self):
         llm = SplitLlm(tool_call("split_search", {"parts": ["건성용 토너", "수분크림"]}),

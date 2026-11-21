@@ -13,15 +13,19 @@ from agent_service.config import settings
 logger = logging.getLogger(__name__)
 
 # The search server loads its model and encodes once before it is ready (ADR-183): 16 s on the demo server before the
-# encoding was added, which takes about 8 s more.
-START_TIMEOUT_SECONDS = 60
+# encoding was added, which takes about 8 s more. The reranker is loaded and scores once as well (ADR-187).
+START_TIMEOUT_SECONDS = 120
 STOP_TIMEOUT_SECONDS = 10
 RECONNECT_WAIT_SECONDS = 10
-CALL_TIMEOUT_SECONDS = 35  # must stay above the tools' own 30 s HTTP timeout, or a slow but healthy server is restarted
+# Must stay above the tools' own 30 s HTTP timeout and the reranking, 29 to 47 s a search on the demo server
+# (ADR-187), or a slow but healthy server is restarted.
+CALL_TIMEOUT_SECONDS = 90
 BACKOFF_START_SECONDS = 0.2
 BACKOFF_MAX_SECONDS = 5.0
 # Tool arguments the agent fills from the chat request, so the LLM is never shown them (ADR-120).
 REQUEST_ARGUMENTS = {"skin_type"}
+# Tools the agent calls itself for the cards it shows; the LLM is not given them (ADR-187).
+AGENT_ONLY_TOOLS = {"rank_evidence"}
 
 
 class ToolError(Exception):
@@ -130,6 +134,7 @@ class McpTools:
         self._search = _Session("search-mcp", {"CATALOG_SERVICE_URL": settings.catalog_service_url,
                                                "SEARCH_BACKEND": settings.search_backend,
                                                "OPENSEARCH_URL": settings.opensearch_url,
+                                               "EVIDENCE_RERANK": os.getenv("EVIDENCE_RERANK", ""),
                                                **{k: v for k, v in os.environ.items() if k.startswith("HF_")},
                                                **_tracing("search-mcp")})
         self._inventory = _Session("inventory-mcp", {"ORDER_SERVICE_URL": settings.order_service_url,
@@ -149,7 +154,7 @@ class McpTools:
             {"type": "function",
              "function": {"name": tool.name, "description": tool.description or "",
                           "parameters": _without_request_arguments(tool.input_schema)}}
-            for _, tool in tools
+            for _, tool in tools if tool.name not in AGENT_ONLY_TOOLS
         ]
         return self
 

@@ -74,6 +74,8 @@ services:
       ORDER_SERVICE_URL: http://order:8082
       SEARCH_BACKEND: ${SEARCH_BACKEND:-opensearch}
       OPENSEARCH_URL: http://opensearch:9200
+      # The cross-encoder picks the cards' evidence (ADR-187); EVIDENCE_RERANK=0 in deploy/.env turns it off.
+      EVIDENCE_RERANK: ${EVIDENCE_RERANK:-1}
       LLM_BASE_URL: ${LLM_BASE_URL:?}
       LLM_MODEL: ${LLM_MODEL:?}
       LLM_API_KEY: ${LLM_API_KEY:?}

@@ -56,9 +56,9 @@ management:
 resilience4j:
   timelimiter:
     instances:
-      # Longer than the chat's own 60 s limit for all its LLM calls, after which the agent answers by rules.
+      # Longer than the chat's own 150 s limit for all its LLM calls, after which the agent answers by rules (ADR-187).
       agent:
-        timeout-duration: 75s
+        timeout-duration: 165s
       catalog:
         timeout-duration: 10s
       order:

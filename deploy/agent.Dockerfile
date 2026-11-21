@@ -19,4 +19,10 @@ ENV HF_HUB_OFFLINE=1
 RUN HF_HUB_OFFLINE=0 python -c "from huggingface_hub import snapshot_download; snapshot_download('BAAI/bge-m3', \
         allow_patterns=['*.json', 'pytorch_model.bin', 'sentencepiece.bpe.model'])" \
     && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-m3')"
+# The reranker for card evidence (ADR-187), at the revision search-mcp loads, in its own layer so BGE-M3's stays cached.
+RUN HF_HUB_OFFLINE=0 python -c "from huggingface_hub import snapshot_download; snapshot_download( \
+        'BAAI/bge-reranker-v2-m3', revision='953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e', \
+        allow_patterns=['*.json', 'model.safetensors', 'sentencepiece.bpe.model'])" \
+    && python -c "from sentence_transformers import CrossEncoder; \
+        CrossEncoder('BAAI/bge-reranker-v2-m3', revision='953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e')"
 CMD ["agent-service"]

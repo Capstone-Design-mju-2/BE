@@ -57,9 +57,9 @@ make run-agent
 make run-gateway
 ```
 
-화면은 gateway-service(8080) 한 주소로 부른다(ADR-133). gateway는 `/api/v1/chat`을 agent로, `/api/v1/products/**`를 catalog로, `/api/v1/inventories/**`와 `/api/v1/orders/**`를 order로 보내고, `/internal/**`과 각 서비스의 actuator는 넘기지 않는다. 요청마다 `X-Request-Id`를 붙여 서비스와 응답에 같이 주고, gateway 로그에 요청 ID·경로·상태·걸린 시간을 한 줄씩 남긴다. 서비스에 닿지 못하거나 시간 제한(채팅 75초, 나머지 10초)을 넘기면 503 `SERVICE_UNAVAILABLE`로 바로 답한다. 최근 10번 중 절반 이상이 그렇게 실패하면(최소 5번) 10초 동안 그 서비스를 부르지 않고 같은 503을 준다. 서비스가 직접 보낸 오류 응답은 그대로 통과한다.
+화면은 gateway-service(8080) 한 주소로 부른다(ADR-133). gateway는 `/api/v1/chat`을 agent로, `/api/v1/products/**`를 catalog로, `/api/v1/inventories/**`와 `/api/v1/orders/**`를 order로 보내고, `/internal/**`과 각 서비스의 actuator는 넘기지 않는다. 요청마다 `X-Request-Id`를 붙여 서비스와 응답에 같이 주고, gateway 로그에 요청 ID·경로·상태·걸린 시간을 한 줄씩 남긴다. 서비스에 닿지 못하거나 시간 제한(채팅 165초, 나머지 10초)을 넘기면 503 `SERVICE_UNAVAILABLE`로 바로 답한다. 최근 10번 중 절반 이상이 그렇게 실패하면(최소 5번) 10초 동안 그 서비스를 부르지 않고 같은 503을 준다. 서비스가 직접 보낸 오류 응답은 그대로 통과한다.
 
-MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 서버 프로세스가 죽으면 다음 호출이 세션을 다시 열고 한 번 재시도한다(ADR-69). 호출이 35초 안에 끝나지 않아도 같은 방식으로 세션을 다시 연다(도구가 catalog·order·OpenSearch를 부르는 HTTP 제한 30초보다 커야 느리지만 정상인 서버를 재시작하지 않는다). 질문 하나의 LLM 호출 전체는 `LLM_TIMEOUT_SECONDS`(기본 60초) 안에 끝나야 하고, 넘으면 LLM 없는 규칙 방식으로 답한다. 도구만 단독으로 확인하려면 다음처럼 실행한다.
+MCP 서버는 stdio transport를 사용한다. agent-service가 시작할 때 `search-mcp`와 `inventory-mcp`를 자식 프로세스로 띄우고 세션을 재사용하므로(ADR-67, ADR-68) `/chat`을 쓰는 데는 따로 실행할 필요가 없다. 서버 프로세스가 죽으면 다음 호출이 세션을 다시 열고 한 번 재시도한다(ADR-69). 호출이 90초 안에 끝나지 않아도 같은 방식으로 세션을 다시 연다(도구가 catalog·order·OpenSearch를 부르는 HTTP 제한 30초와 근거 리랭크 시간, 시연 서버에서 검색당 29~47초보다 커야 느리지만 정상인 서버를 재시작하지 않는다, ADR-187). 질문 하나의 LLM 호출 전체는 `LLM_TIMEOUT_SECONDS`(기본 150초) 안에 끝나야 하고, 넘으면 LLM 없는 규칙 방식으로 답한다. 근거 리랭크는 `EVIDENCE_RERANK=1`일 때만 켜진다(compose 기본값 1). 도구만 단독으로 확인하려면 다음처럼 실행한다.
 
 ```bash
 make run-search-mcp
