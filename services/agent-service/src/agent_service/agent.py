@@ -109,7 +109,8 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
     started = time.monotonic()
     try:
         answer, products, inventories, reasons, searched = await _loop(
-            message, llm, tools, trace, skin_type, deadline or time.monotonic() + llm.timeout, conditions, exclude)
+            message, llm, tools, trace, skin_type, deadline or time.monotonic() + llm.timeout, conditions, exclude,
+            rerank=True)
         trace.update(answer=answer, reasons={
             str(product_id): {"reason": reason, "inSearch": product_id in {p["productId"] for p in products},
                               "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), []),
@@ -128,9 +129,12 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
 
 async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
                 deadline: float, conditions: dict[str, Any] | None, exclude: Sequence[int],
-                system: str | None = None, allowed: set[str] | None = None
+                system: str | None = None, allowed: set[str] | None = None, rerank: bool = False
                 ) -> tuple[str, list[dict], dict[int, dict], dict[int, str], dict[str, Any] | None]:
-    """The main agent's loop, or a sub-agent's when given its own system prompt and the tools it may call."""
+    """The main agent's loop, or a sub-agent's when given its own system prompt and the tools it may call.
+
+    rerank picks the cards' evidence again after each search. Sub-agents leave it off: they search at once on one
+    search server, and the scoring would add up past the call limit (ADR-187)."""
     if system is None:
         system = (SYSTEM_PROMPT
                   + (PINNED_CONDITIONS if conditions is not None else "")
@@ -178,7 +182,7 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
             else:
                 blocked = AFTER_INVENTORY if inventories else AFTER_SPLIT if split_reasons is not None else None
                 result, arguments = await _call_tool(tools, name, raw_arguments, trace, skin_type, conditions,
-                                                     filters, blocked, exclude)
+                                                     filters, blocked, exclude, rerank)
             if name == "search_products":
                 if "error" in result:
                     search_failed = True
@@ -261,7 +265,7 @@ async def _worker(part: str, llm: Llm, tools: McpTools, skin_type: str | None,
 
 async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict[str, Any], skin_type: str | None,
                      conditions: dict[str, Any] | None, filters: dict[str, Any], blocked: str | None,
-                     exclude: Sequence[int]) -> tuple[dict[str, Any], dict[str, Any]]:
+                     exclude: Sequence[int], rerank: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
     """Return the result and the chosen arguments, an alternative's conditions in place of the LLM's search arguments
     and the first search's filters over a corrected search's.
 
@@ -288,7 +292,7 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
         arguments = conditions if conditions is not None else {**arguments, **filters}
     try:
         if name == "search_products":
-            return await search(tools, arguments, skin_type, exclude), arguments
+            return await search(tools, arguments, skin_type, exclude, rerank), arguments
         return await tools.call(name, arguments), arguments
     except ToolError as error:
         entry["error"] = str(error)
@@ -296,7 +300,7 @@ async def _call_tool(tools: McpTools, name: str, raw_arguments: str, trace: dict
 
 
 async def search(tools: McpTools, arguments: dict[str, Any], skin_type: str | None,
-                 exclude: Sequence[int] = ()) -> dict[str, Any]:
+                 exclude: Sequence[int] = (), rerank: bool = False) -> dict[str, Any]:
     """Search as the server requires, whether the LLM, the rules or an earlier answer chose the arguments.
 
     Every searched product becomes a card, so the server sets the count whatever limit was asked for, and the skin type
@@ -304,6 +308,9 @@ async def search(tools: McpTools, arguments: dict[str, Any], skin_type: str | No
     cards full and dropped before the LLM or the cards see them (ADR-131). A product Musinsa lists under several numbers
     makes one card, and an excluded product takes its other numbers with it; when that leaves fewer than five cards
     out of a full result, the search is asked once more for as many more (ADR-172).
+
+    With rerank, the evidence of the five cards is picked again once they are known, not per search call: a second
+    call can return up to 20 products, and scoring them all would take minutes on the demo server (ADR-187).
     """
     arguments = {k: v for k, v in arguments.items() if k != "skin_type"}
     if skin_type is not None:
@@ -315,7 +322,24 @@ async def search(tools: McpTools, arguments: dict[str, Any], skin_type: str | No
     if short > 0 and len(result["products"]) == limit and limit < MAX_SEARCH_LIMIT:
         result = await tools.call("search_products", {**arguments, "limit": min(MAX_SEARCH_LIMIT, limit + short)})
         products = one_per_product(result["products"], exclude)
-    return {**result, "products": products[:SEARCH_LIMIT]}
+    products = products[:SEARCH_LIMIT]
+    if rerank and products and arguments.get("q"):
+        products = await reranked(tools, products, arguments["q"], skin_type)
+    return {**result, "products": products}
+
+
+async def reranked(tools: McpTools, products: list[dict], q: str, skin_type: str | None) -> list[dict]:
+    """The cards with the evidence the cross-encoder picked (ADR-187). A card keeps the search's evidence when the
+    reranking fails, is not served, or found no review for it: the screen rejects a card without evidence."""
+    arguments: dict[str, Any] = {"product_ids": [p["productId"] for p in products], "q": q}
+    if skin_type is not None:
+        arguments["skin_type"] = skin_type
+    try:
+        ranked = await tools.call("rank_evidence", arguments)
+    except ToolError:
+        return products
+    picked = {p["productId"]: p["evidence"] for p in ranked["products"] if p["evidence"]}
+    return [{**p, "evidence": picked.get(p["productId"], p["evidence"])} for p in products]
 
 
 def same_product(product: dict) -> int:

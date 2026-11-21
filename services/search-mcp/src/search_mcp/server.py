@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -82,6 +83,13 @@ TYPE_WORDS = ["크림", "세럼", "앰플", "에센스", "토너", "스킨", "�
 SET_MARKS = ["세트", "SET", "Set", "2종", "3종", "+"]
 # A product with few answers is pulled toward the share an average product has, by this many answers' weight.
 SURVEY_PRIOR, SURVEY_PRIOR_WEIGHT = 0.8, 10
+# A cross-encoder reading q with each review picks a card's evidence among the product's reviews closest to q
+# (ADR-187). It takes 29 to 47 s a search on the demo server, so it runs only when EVIDENCE_RERANK=1; CI has no model.
+EVIDENCE_RERANK = VECTORS and os.getenv("EVIDENCE_RERANK") == "1"
+# The revision the evidence was measured with.
+RERANK_MODEL, RERANK_REVISION = "BAAI/bge-reranker-v2-m3", "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
+EVIDENCE_POOL = 30
+RERANK_BATCH = 16
 
 
 tracer = trace.get_tracer("search-mcp")
@@ -107,6 +115,24 @@ def _embedder() -> Callable[[str], list[float]]:
 
 
 embed = _embedder() if VECTORS else None
+
+
+def _reranker() -> Callable[[list[tuple[str, str]]], list[float]]:
+    import torch
+    from sentence_transformers import CrossEncoder
+
+    model = CrossEncoder(RERANK_MODEL, revision=RERANK_REVISION, max_length=512,
+                         device="mps" if torch.backends.mps.is_available() else "cpu")
+    model.predict([("수분크림", "촉촉해요")], show_progress_bar=False)
+
+    def score(pairs: list[tuple[str, str]]) -> list[float]:
+        with tracer.start_as_current_span("rerank"):
+            return model.predict(pairs, batch_size=RERANK_BATCH, show_progress_bar=False).tolist()
+
+    return score
+
+
+rerank = _reranker() if EVIDENCE_RERANK else None
 
 server = MCPServer(
     name="search-mcp",
@@ -346,10 +372,47 @@ async def search_product_reviews(product_id: int, q: str) -> dict[str, Any]:
     return {"productId": product_id, "reviews": [evidence(r, q) for r in (worded[:2] or reviews[:1])]}
 
 
+async def rank_evidence(product_ids: list[int], q: str, skin_type: SkinType | None = None) -> dict[str, Any]:
+    """Each product's two reviews the cross-encoder scores highest for q among its reviews closest to q, among those
+    by writers of skin_type when two or more are (ADR-187). The excerpts start near q's words. The agent calls it for
+    the cards it shows; the LLM is not given it."""
+    vector = embed(q)
+    pools = await closest_per_product(vector, product_ids, {"match_all": {}}, EVIDENCE_POOL)
+    if skin_type is not None:
+        typed = await closest_per_product(vector, product_ids, {"term": {"skin_type": skin_type}}, EVIDENCE_POOL)
+        pools = [own if len(own) >= 2 else every for own, every in zip(typed, pools)]
+    pairs = [(q, " ".join(review["content"].split())) for pool in pools for review in pool]
+    # Scoring a search takes tens of seconds on the demo server; in a thread the server still answers other calls.
+    scores = await asyncio.to_thread(rerank, pairs) if pairs else []
+    return {"products": [{"productId": product_id, "evidence": [evidence(review, q) for review in best]}
+                         for product_id, best in zip(product_ids, best_two(pools, scores))]}
+
+
+def best_two(pools: list[list[dict]], scores: list[float]) -> list[list[dict]]:
+    """Each pool's two highest-scored reviews, the scores given for all pools in order. Equal scores keep the review
+    closer to q first.
+
+    >>> pools = [[{"review_id": 1}, {"review_id": 2}, {"review_id": 3}], [{"review_id": 4}], []]
+    >>> [[review["review_id"] for review in best] for best in best_two(pools, [0.1, 0.9, 0.5, 0.3])]
+    [[2, 3], [4], []]
+    >>> [review["review_id"] for review in best_two([pools[0]], [0.5, 0.5, 0.9])[0]]
+    [3, 1]
+    """
+    picked, start = [], 0
+    for pool in pools:
+        own = scores[start:start + len(pool)]
+        start += len(pool)
+        order = sorted(range(len(pool)), key=lambda i: -own[i])
+        picked.append([pool[i] for i in order[:2]])
+    return picked
+
+
 # Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
 server.tool(name="search_products")(search_reviews if VECTORS else search_products)
 if VECTORS:
     server.tool()(search_product_reviews)
+if EVIDENCE_RERANK:
+    server.tool()(rank_evidence)
 
 
 def excluded_names(exclude_ingredients: list[str] | str | None) -> list[str]:
