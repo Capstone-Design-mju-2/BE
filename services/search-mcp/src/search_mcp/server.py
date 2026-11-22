@@ -32,7 +32,9 @@ QUERY_VECTORS = os.getenv("QUERY_VECTORS")
 # Reviews fetched per search before grouping them into products. At 100 each of the 21 quality questions still had
 # five products of the asked type; at 50 a one-brand question had four products in all (ADR-115).
 CANDIDATES = 100
-EXCERPT_LENGTH = 80
+# The reviews the cross-encoder picks state the condition mostly 80 to 320 characters in: at 80 the card showed it
+# for 74.0% of the evidence, at 160 for 79.4% (ADR-188).
+EXCERPT_LENGTH = 160
 EXCERPT_LEAD = 20
 PRODUCT_CANDIDATES = 10
 # The LLM picks a name: given numeric codes, gpt-oss sent them as JSON numbers and the schema rejected them.
@@ -389,22 +391,35 @@ async def rank_evidence(product_ids: list[int], q: str, skin_type: SkinType | No
 
 
 def best_two(pools: list[list[dict]], scores: list[float]) -> list[list[dict]]:
-    """Each pool's two highest-scored reviews, the scores given for all pools in order. Equal scores keep the review
-    closer to q first.
+    """Each pool's two highest-scored reviews with different text, the scores given for all pools in order. Equal
+    scores keep the review closer to q first.
 
-    >>> pools = [[{"review_id": 1}, {"review_id": 2}, {"review_id": 3}], [{"review_id": 4}], []]
+    >>> pools = [[{"review_id": i, "content": c} for i, c in [(1, "a"), (2, "b"), (3, "c")]],
+    ...          [{"review_id": 4, "content": "d"}], []]
     >>> [[review["review_id"] for review in best] for best in best_two(pools, [0.1, 0.9, 0.5, 0.3])]
     [[2, 3], [4], []]
     >>> [review["review_id"] for review in best_two([pools[0]], [0.5, 0.5, 0.9])[0]]
     [3, 1]
+    >>> pools[0][2]["content"] = " b "
+    >>> [review["review_id"] for review in best_two([pools[0]], [0.1, 0.9, 0.5])[0]]
+    [2, 1]
     """
     picked, start = [], 0
     for pool in pools:
         own = scores[start:start + len(pool)]
         start += len(pool)
-        order = sorted(range(len(pool)), key=lambda i: -own[i])
-        picked.append([pool[i] for i in order[:2]])
+        best: list[dict] = []
+        for i in sorted(range(len(pool)), key=lambda i: -own[i]):
+            if len(best) < 2 and not same_text(pool[i], best):
+                best.append(pool[i])
+        picked.append(best)
     return picked
+
+
+def same_text(review: dict, reviews: list[dict]) -> bool:
+    """Whether one of reviews has review's text: reviews with other ids and the same text filled 16 of 311 cards
+    (ADR-188)."""
+    return any(review["content"].split() == other["content"].split() for other in reviews)
 
 
 # Each backend exposes only the arguments it honours; product_types means nothing to the catalog search.
@@ -499,8 +514,12 @@ def group_by_product(reviews: list[dict], limit: int) -> list[dict]:
     ...            for r, p, c in [(1, 10, "a"), (2, 20, "b"), (3, 20, "c"), (4, 30, "d"), (5, 20, "e"), (6, 30, "f")]]
     >>> [(p["productId"], [e["reviewId"] for e in p["evidence"]]) for p in group_by_product(reviews, 2)]
     [(20, [2, 3]), (30, [4, 6])]
+    >>> reviews[2]["content"] = "b"
+    >>> [e["reviewId"] for e in group_by_product(reviews, 1)[0]["evidence"]]
+    [2, 5]
     """
     products: dict[int, dict] = {}
+    kept: dict[int, list[dict]] = {}
     counts: Counter[int] = Counter()
     for review in reviews:
         counts[review["product_id"]] += 1
@@ -509,7 +528,9 @@ def group_by_product(reviews: list[dict], limit: int) -> list[dict]:
             product = products[review["product_id"]] = {
                 "productId": review["product_id"], "name": review["name"], "brand": review["brand"],
                 "price": review["price"], "similarity": review.get("similarity"), "evidence": []}
-        if len(product["evidence"]) < 2:
+        own = kept.setdefault(review["product_id"], [])
+        if len(own) < 2 and not same_text(review, own):
+            own.append(review)
             product["evidence"].append(evidence(review))
     # sorted is stable, so products with equal counts keep the order of their closest review.
     return sorted(products.values(), key=lambda p: -counts[p["productId"]])[:limit]
@@ -557,9 +578,9 @@ def excerpt(content: str, q: str | None = None) -> str:
 
     >>> excerpt("  건성인데\\n  촉촉해요  ")
     '건성인데 촉촉해요'
-    >>> len(excerpt("가" * 100))
-    80
-    >>> excerpt("가" * 100 + " 끈적임 없이 좋아요", "끈적이지 않음")[-12:]
+    >>> len(excerpt("가" * 200))
+    160
+    >>> excerpt("가" * 200 + " 끈적임 없이 좋아요", "끈적이지 않음")[-12:]
     '가 끈적임 없이 좋아요'
     """
     text = " ".join(content.split())
