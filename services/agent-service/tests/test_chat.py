@@ -391,6 +391,16 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual(llm.requests[-1][-1]["role"], "tool")
         self.assertNotIn("msscdn", llm.requests[-1][-1]["content"])
 
+    def test_무신사_상품_주소는_카드에만_싣고_LLM에게는_넘기지_않는다(self):
+        url = "https://www.musinsa.com/products/1000"
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
+        serve({"products": [{**SEARCH["products"][0], "productUrl": url}]}, INVENTORY, llm)
+        body = self.chat().json()
+
+        self.assertEqual(body["products"][0]["productUrl"], url)
+        self.assertEqual(llm.requests[-1][-1]["role"], "tool")
+        self.assertNotIn("musinsa.com", llm.requests[-1][-1]["content"])
+
     def test_similarity는_LLM에게만_넘기고_카드에는_싣지_않는다(self):
         llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}), final("찾았어요.", {}))
         serve({"products": [{**SEARCH["products"][0], "similarity": 0.71}]}, INVENTORY, llm)

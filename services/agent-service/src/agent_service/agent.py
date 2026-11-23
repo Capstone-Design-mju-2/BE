@@ -34,8 +34,9 @@ SEARCH_ONLY_FIELDS = {"similarity"}
 TRACE_PATH = Path(".local/chat-trace.jsonl")
 UNKNOWN_INVENTORY = {"status": "UNKNOWN", "quantity": None, "estimatedDeliveryDate": None}
 IMAGE_FIELDS = {"imageUrl", "thumbnailUrl"}
-# The low-rated review a card shows beside its evidence; reasons are written from the evidence alone (ADR-179).
-CARD_ONLY_FIELDS = IMAGE_FIELDS | {"criticalReview"}
+# The low-rated review a card shows beside its evidence; reasons are written from the evidence alone (ADR-179). The
+# Musinsa page address is for the card's link only (ADR-189).
+CARD_ONLY_FIELDS = IMAGE_FIELDS | {"criticalReview", "productUrl"}
 # Read only here to show a product once (ADR-172); neither the LLM nor the cards need it.
 AGENT_ONLY_FIELDS = {"sameProductId"}
 QUOTE = re.compile(r"['‘\"“]([^'’\"”]{2,})['’\"”]")

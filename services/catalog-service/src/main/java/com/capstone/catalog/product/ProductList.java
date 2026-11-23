@@ -32,7 +32,8 @@ public class ProductList {
             LIMIT :size OFFSET :offset
             """;
 
-    private static final String IMAGES = "SELECT id, image_url, same_product_id FROM products WHERE id IN (:ids)";
+    private static final String IMAGES =
+            "SELECT id, image_url, same_product_id, external_id FROM products WHERE id IN (:ids)";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -61,13 +62,18 @@ public class ProductList {
     public List<Image> images(List<Long> ids) {
         return jdbcTemplate.query(IMAGES, Map.of("ids", ids), (rs, row) -> new Image(
                 rs.getLong("id"), rs.getString("image_url"), Thumbnails.small(rs.getString("image_url")),
-                rs.getObject("same_product_id", Long.class)));
+                rs.getObject("same_product_id", Long.class), musinsaUrl(rs.getLong("external_id"))));
+    }
+
+    /** The product's page on Musinsa, opened by its Musinsa number (ADR-189). */
+    static String musinsaUrl(long externalId) {
+        return "https://www.musinsa.com/products/" + externalId;
     }
 
     public record Page(long total, List<Product> products) {}
 
     /** sameProductId marks a product Musinsa lists under several numbers; null when it is listed once (ADR-172). */
-    public record Image(long productId, String imageUrl, String thumbnailUrl, Long sameProductId) {}
+    public record Image(long productId, String imageUrl, String thumbnailUrl, Long sameProductId, String productUrl) {}
 
     public record Product(long productId, String name, String brand, int price, int reviewCount, int reviewScore,
                           String imageUrl, String thumbnailUrl) {}

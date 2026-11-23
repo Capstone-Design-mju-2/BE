@@ -321,8 +321,9 @@ def survey_score(survey: dict | None, rank_by: str) -> float:
 
 
 async def with_catalog_fields(products: list[dict]) -> list[dict]:
-    """Add the catalog's image addresses (ADR-151) and same-product marks (ADR-172), which the review index lacks. If
-    the catalog cannot answer, the cards go out without them rather than failing the search."""
+    """Add the catalog's image addresses (ADR-151), same-product marks (ADR-172) and Musinsa page addresses (ADR-189),
+    which the review index lacks. If the catalog cannot answer, the cards go out without them rather than failing the
+    search."""
     images: dict[int, dict] = {}
     if products:
         try:
@@ -335,7 +336,8 @@ async def with_catalog_fields(products: list[dict]) -> list[dict]:
             pass
     return [{**p, "imageUrl": images.get(p["productId"], {}).get("imageUrl"),
              "thumbnailUrl": images.get(p["productId"], {}).get("thumbnailUrl"),
-             "sameProductId": images.get(p["productId"], {}).get("sameProductId")} for p in products]
+             "sameProductId": images.get(p["productId"], {}).get("sameProductId"),
+             "productUrl": images.get(p["productId"], {}).get("productUrl")} for p in products]
 
 
 async def closest_per_product(vector: list[float], product_ids: list[int], condition: dict,

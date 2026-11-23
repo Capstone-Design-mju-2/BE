@@ -223,6 +223,13 @@ class ProductSearchControllerTest {
     }
 
     @Test
+    void 무신사_상품_페이지_주소를_무신사_상품번호로_준다() throws Exception {
+        mockMvc.perform(get("/api/v1/products/search").param("q", "촉촉"))
+                .andExpect(jsonPath("$.products[0].productId").value(2))
+                .andExpect(jsonPath("$.products[0].productUrl").value("https://www.musinsa.com/products/2000"));
+    }
+
+    @Test
     void 같은_상품_표시가_있으면_그_번호를_주고_없으면_null이다() throws Exception {
         jdbcTemplate.update("UPDATE products SET same_product_id = 2 WHERE id = 2");
 
