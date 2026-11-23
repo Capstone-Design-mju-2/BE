@@ -68,6 +68,10 @@ LOW_RATED = {"range": {"grade": {"lte": 3}}}
 CRITICAL_POOL = 5
 # Of the low-rated reviews closest to a question 45% stated a downside, of those using one of these words 87%.
 COMPLAINT_WORDS = ["아쉬", "별로", "단점", "다만", "실망", "불편", "안 맞", "안맞", "글쎄", "모르겠", "그닥", "그다지"]
+# Reviews were collected up to 300 a product, so one request holds all of a product's. The LLM reads at most 20 of its
+# complaints, enough to group them; popular products had 8 to 28 (ADR-194).
+PRODUCT_REVIEWS = 300
+COMPLAINTS_SHOWN = 20
 # Survey answers that do not rate an item well, spaces removed. Every other answer of the items above does.
 SURVEY_NOT_GOOD = {"보통", "낮음", "매우낮음", "나쁨", "매우나쁨", "약간있음", "매우있음", "조금있음", "눈에띄게있음",
                    "심하게있음", "아쉬움", "매우아쉬움", "불편함", "어려움", "매우어려움", "번거로움", "번거러움", "부각됨",
@@ -376,6 +380,35 @@ async def search_product_reviews(product_id: int, q: str) -> dict[str, Any]:
     return {"productId": product_id, "reviews": [evidence(r, q) for r in (worded[:2] or reviews[:1])]}
 
 
+async def product_complaints(product_id: int) -> dict[str, Any]:
+    """Find the reviews of one searched product that word a complaint (아쉬, 별로, 다만 and the like), for a question
+    about that product's downsides: reviewCount of its reviews, complaining of them complain, and up to 20 of those."""
+    body = {"size": PRODUCT_REVIEWS, "_source": ["review_id", "content", "grade", "skin_type"],
+            "query": {"term": {"product_id": product_id}}}
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(f"{OPENSEARCH_URL}/{OPENSEARCH_INDEX}/_search", json=body)
+        response.raise_for_status()
+    reviews = [hit["_source"] for hit in response.json()["hits"]["hits"]]
+    found = complaints(reviews)
+    return {"productId": product_id, "reviewCount": len(reviews), "complaining": len(found),
+            "reviews": found[:COMPLAINTS_SHOWN]}
+
+
+def complaints(reviews: list[dict]) -> list[dict]:
+    """The reviews that word a complaint, lowest rated first, each excerpt opening near the word (ADR-194). Most
+    complaints come with 4 or 5 stars as "다만 ~가 아쉬워요", so the rating does not pick them.
+
+    >>> reviews = [{"review_id": 1, "content": "촉촉하고 좋아요", "grade": 5},
+    ...            {"review_id": 2, "content": "다 좋은데 향이 별로예요", "grade": 5},
+    ...            {"review_id": 3, "content": "흡수가 느려서 실망", "grade": 2}]
+    >>> [(c["reviewId"], c["excerpt"]) for c in complaints(reviews)]
+    [(3, '흡수가 느려서 실망'), (2, '다 좋은데 향이 별로예요')]
+    """
+    worded = [(review, [word for word in COMPLAINT_WORDS if word in review["content"]]) for review in reviews]
+    worded = sorted([(review, words) for review, words in worded if words], key=lambda pair: pair[0]["grade"])
+    return [evidence(review, " ".join(words)) for review, words in worded]
+
+
 async def rank_evidence(product_ids: list[int], q: str, skin_type: SkinType | None = None) -> dict[str, Any]:
     """Each product's two reviews the cross-encoder scores highest for q among its reviews closest to q, among those
     by writers of skin_type when two or more are (ADR-187). The excerpts start near q's words. The agent calls it for
@@ -428,6 +461,7 @@ def same_text(review: dict, reviews: list[dict]) -> bool:
 server.tool(name="search_products")(search_reviews if VECTORS else search_products)
 if VECTORS:
     server.tool()(search_product_reviews)
+    server.tool()(product_complaints)
 if EVIDENCE_RERANK:
     server.tool()(rank_evidence)
 

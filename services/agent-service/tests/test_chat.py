@@ -67,6 +67,10 @@ class FakeTools:
         if name == "search_product_reviews":
             self.calls.append((name, arguments["product_id"], arguments["q"]))
             return {"productId": arguments["product_id"], "reviews": self.reviews.get(arguments["product_id"], [])}
+        if name == "product_complaints":
+            self.calls.append((name, arguments["product_id"]))
+            found = self.reviews.get(arguments["product_id"], [])
+            return {"productId": arguments["product_id"], "reviewCount": 300, "complaining": len(found), "reviews": found}
         if name == "rank_evidence" and self.ranked is not None:
             self.calls.append((name, arguments["product_ids"], arguments["q"], arguments.get("skin_type")))
             if isinstance(self.ranked, Exception):
@@ -449,6 +453,38 @@ class LlmChatTest(unittest.TestCase):
 
         self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
         self.assertEqual([p["evidence"] for p in body["products"]], [p["evidence"] for p in SEARCH["products"]])
+
+    def test_단점을_물으면_그_상품_카드만_내고_인용한_단점_리뷰를_근거로_보이며_리랭크하지_않는다(self):
+        complaint = {"reviewId": 18, "rating": 5, "excerpt": "다 좋은데 향이 좀 별로예요", "skinType": None}
+        llm = FakeLlm(tool_call("search_products", {"q": "A 크림 A"}),
+                      tool_call("product_complaints", {"product_id": 1}),
+                      final("리뷰 300개 중 1개가 향을 아쉬워해요.",
+                            {"1": "'향이 좀 별로예요'라는 리뷰가 있어요.", "2": "무난하다는 리뷰가 있어요."}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        tools.reviews = {1: [complaint]}
+        tools.ranked = {"products": []}
+        body = self.chat("A 크림 A 단점 뭐야?").json()
+
+        self.assertIn(("product_complaints", 1), tools.calls)
+        self.assertEqual([c for c in tools.calls if c[0] == "rank_evidence"], [])
+        self.assertEqual([p["productId"] for p in body["products"]], [1])
+        self.assertEqual(body["products"][0]["evidence"][0], complaint)
+
+    def test_단점을_묻지_않으면_단점_도구를_불러도_카드는_검색_결과_그대로다(self):
+        llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
+                      tool_call("product_complaints", {"product_id": 99}),
+                      final("찾았어요.", {}))
+        tools = serve(SEARCH, INVENTORY, llm)
+        tools.reviews = {99: [{"reviewId": 991, "rating": 2, "excerpt": "별로예요", "skinType": None}]}
+        body = self.chat().json()
+
+        self.assertIn("error", json.loads(llm.requests[-1][-1]["content"]))
+        self.assertEqual([p["productId"] for p in body["products"]], [1, 2, 3])
+
+    def test_단점_질문은_여러_말투를_알아보고_추천_질문은_아니다(self):
+        for message in ("단점 뭐야?", "아쉬운 점 있어?", "별로인 점 알려줘", "써 본 사람들 불만이 뭐야", "아쉬운게 있나"):
+            self.assertTrue(agent.DOWNSIDE_QUESTION.search(message), message)
+        self.assertFalse(agent.DOWNSIDE_QUESTION.search(MESSAGE))
 
     def test_다시_검색해도_첫_검색의_가격_카테고리_브랜드_성분_조건은_그대로다(self):
         llm = FakeLlm(tool_call("search_products", {"q": "수분크림", "max_price": 30000, "category": "스킨케어"}),
