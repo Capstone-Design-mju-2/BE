@@ -207,7 +207,7 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
     modifiers (크림 for 수분크림), along with its other names.
     max_price keeps only products priced at or below it (KRW). limit is 1 to 20.
     category keeps products of one category, given by its name.
-    brand keeps one brand, matched exactly by its Korean name.
+    brand keeps the brands whose Korean name starts with it.
     exclude_ingredients drops products containing any of them, and products whose ingredient list is unknown.
     Each product's similarity, from 0 to 1, is how close its closest review is to q.
     """
@@ -216,9 +216,10 @@ async def search_reviews(q: str, max_price: int | None = None, category: Categor
         filters.append({"range": {"price": {"lte": max_price}}})
     if category is not None:
         filters.append({"term": {"category": CATEGORY_CODES[category]}})
-    # Like the catalog, surrounding spaces are dropped and a blank brand filters nothing.
+    # Like the catalog, surrounding spaces are dropped and a blank brand filters nothing. Buyers name a brand without
+    # what the catalog appends: 메종 마르지엘라 for 메종 마르지엘라 퍼퓸 found nothing as an exact match (ADR-195).
     if brand and brand.strip():
-        filters.append({"term": {"brand": brand.strip()}})
+        filters.append({"prefix": {"brand": brand.strip()}})
     must_not = []
     excluded = excluded_names(exclude_ingredients)
     if excluded:
