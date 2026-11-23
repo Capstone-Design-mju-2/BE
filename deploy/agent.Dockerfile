@@ -3,13 +3,16 @@ FROM python:3.11.9-slim
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /usr/local/bin/uv
 WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv UV_PYTHON_DOWNLOADS=never UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+# Dependencies and models come before the sources: a layer changed redoes every layer after it, and these 6.3 GB of
+# layers took 9.5 GB of the server's disk with the packed copy its containerd store keeps (ADR-189).
 COPY pyproject.toml uv.lock ./
-COPY services/agent-service services/agent-service
-COPY services/search-mcp services/search-mcp
-COPY services/inventory-mcp services/inventory-mcp
-COPY services/indexer services/indexer
+COPY services/agent-service/pyproject.toml services/agent-service/
+COPY services/search-mcp/pyproject.toml services/search-mcp/
+COPY services/inventory-mcp/pyproject.toml services/inventory-mcp/
+COPY services/indexer/pyproject.toml services/indexer/
 # --all-extras brings search-mcp's BGE-M3 for SEARCH_BACKEND=opensearch (ADR-130). The uv cache stays out of the image.
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --all-packages --all-extras
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --all-packages --all-extras --no-install-workspace
 RUN useradd --system app && mkdir .local .hf && chown app .local .hf
 USER app
 ENV PATH=/app/.venv/bin:$PATH HF_HOME=/app/.hf
@@ -25,4 +28,11 @@ RUN HF_HUB_OFFLINE=0 python -c "from huggingface_hub import snapshot_download; s
         allow_patterns=['*.json', 'model.safetensors', 'sentencepiece.bpe.model'])" \
     && python -c "from sentence_transformers import CrossEncoder; \
         CrossEncoder('BAAI/bge-reranker-v2-m3', revision='953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e')"
+USER root
+COPY services/agent-service services/agent-service
+COPY services/search-mcp services/search-mcp
+COPY services/inventory-mcp services/inventory-mcp
+COPY services/indexer services/indexer
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --all-packages --all-extras
+USER app
 CMD ["agent-service"]

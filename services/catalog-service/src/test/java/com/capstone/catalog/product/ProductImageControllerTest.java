@@ -56,6 +56,8 @@ class ProductImageControllerTest {
                 .andExpect(jsonPath("$.images[?(@.productId == 2)].thumbnailUrl")
                         .value(URL.replace("_500.jpg", "_125.jpg")))
                 .andExpect(jsonPath("$.images[?(@.productId == 2)].sameProductId").value(contains(2)))
+                .andExpect(jsonPath("$.images[?(@.productId == 2)].productUrl")
+                        .value(contains("https://www.musinsa.com/products/2000")))
                 .andExpect(jsonPath("$.images[?(@.productId == 1)].imageUrl").value(contains(nullValue())))
                 .andExpect(jsonPath("$.images[?(@.productId == 1)].sameProductId").value(contains(nullValue())));
     }
