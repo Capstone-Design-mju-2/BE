@@ -65,11 +65,19 @@ ANSWER_RULES = """- 마지막 답은 다른 글 없이 JSON 하나로만 쓴다:
 - 검색된 상품은 화면에 모두 카드로 나간다. reasons에는 검색된 상품 하나하나에 빠짐없이 이유를 쓴다.
 - reason은 그 상품 evidence의 리뷰 발췌에 실제로 쓰인 내용만 근거로 쓴다. 발췌에 없는 효과나 성분을 지어내지 않는다.
 - 화면에는 productId가 보이지 않는다. answer에는 productId 숫자를 쓰지 않고, 상품을 가리킬 때는 상품 이름을 쓴다."""
+# product_complaints reads the review index, so it is served with the vector search only (ADR-194).
+DOWNSIDE_RULES = """
+- 질문이 상품 하나의 단점이나 아쉬운 점을 물으면 search_products의 q에 그 상품의 브랜드와 이름을 넣어 찾는다. 결과에서 이름이 질문과 가장 맞는 상품 하나를 골라 그 productId로 product_complaints를 부르고, check_inventory도 그 상품 하나로 부른다. 다른 상품은 추천하지 않고, reasons에는 그 상품 하나만 쓴다.
+- 그때 answer는 서너 문장까지 쓴다. product_complaints가 준 발췌를 작은따옴표로 인용해 아쉬운 점을 두세 가지로 묶고, 리뷰 수는 product_complaints의 reviewCount와 complaining만 쓴다. 아쉬운 점을 말하는 리뷰가 없으면 리뷰에서 아쉬운 점을 찾지 못했다고 답한다."""
 # The split rule comes after the filter rules: put between the query and filter rules, it made the LLM drop the
 # category in all three runs of one question (ADR-138).
 SYSTEM_PROMPT = ("너는 화장품 쇼핑몰의 상품 추천 도우미다.\n" + QUERY + "\n" + FILTER_RULES + "\n" + SPLIT_RULE
                  + "\n- 상품을 추천하기 전에 찾은 상품의 productId 전부로 check_inventory를 불러 재고를 확인한다.\n"
-                 + ANSWER_RULES + "\n- 상품 추천과 상관없는 말이면 도구를 부르지 말고 reasons를 빈 객체로 둔다.")
+                 + ANSWER_RULES + (DOWNSIDE_RULES if QUERY == SEMANTIC_QUERY else "")
+                 + "\n- 상품 추천과 상관없는 말이면 도구를 부르지 말고 reasons를 빈 객체로 둔다.")
+# A question about a product's downsides cites its complaints; reranking would put praise on the card and add some 40 s
+# on the demo server (ADR-194).
+DOWNSIDE_QUESTION = re.compile(r"단점|아쉬운\s*(점|게)|별로인\s*(점|게)|안\s*좋은\s*점|나쁜\s*점|불만")
 # A sub-agent finds one product type of a split question; the main agent checks inventory for all of them (ADR-138).
 WORKER_PROMPT = ("너는 화장품 쇼핑몰의 상품 추천 도우미이고, 사용자 질문 가운데 한 상품 유형만 맡아 찾는다. 재고는 확인하지 않는다.\n"
                  + QUERY + "\n" + FILTER_RULES + "\n" + ANSWER_RULES)
@@ -111,7 +119,7 @@ async def run_agent(message: str, llm: Llm, tools: McpTools, skin_type: str | No
     try:
         answer, products, inventories, reasons, searched = await _loop(
             message, llm, tools, trace, skin_type, deadline or time.monotonic() + llm.timeout, conditions, exclude,
-            rerank=True)
+            rerank=not DOWNSIDE_QUESTION.search(message))
         trace.update(answer=answer, reasons={
             str(product_id): {"reason": reason, "inSearch": product_id in {p["productId"] for p in products},
                               "evidence": next((p["evidence"] for p in products if p["productId"] == product_id), []),
@@ -148,6 +156,7 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
     searched = conditions
     inventories: dict[int, dict] = {}
     found: dict[int, list[dict]] = {}
+    complained: set[int] = set()
     filters: dict[str, Any] = {}
     split_reasons: dict[int, str] | None = None
     search_failed = False
@@ -193,9 +202,11 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
                     filters = filters or {k: v for k, v in searched.items() if k in FILTER_ARGUMENTS}
             elif name == "check_inventory" and "error" not in result:
                 inventories.update(inventory_by_id(result))
-            elif name == "search_product_reviews" and "error" not in result:
+            elif name in ("search_product_reviews", "product_complaints") and "error" not in result:
                 if result["productId"] in {p["productId"] for p in products or []}:
                     found.setdefault(result["productId"], []).extend(result["reviews"])
+                    if name == "product_complaints":
+                        complained.add(result["productId"])
                 else:
                     result = {"error": f"productId {result['productId']}은 검색된 상품이 아니다"}
             messages.append({"role": "tool", "tool_call_id": call_id,
@@ -205,6 +216,10 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
     if products is None and search_failed:
         raise LlmError("every search_products call failed")
     reasons = {**(split_reasons or {}), **reasons}
+    if complained:
+        # A downside question asks about one product, so its card stands alone whatever else the LLM wrote reasons for.
+        products = [p for p in products or [] if p["productId"] in complained]
+        reasons = {product_id: reason for product_id, reason in reasons.items() if product_id in complained}
     return answer, with_cited_evidence(products or [], found, reasons), inventories, reasons, searched
 
 
