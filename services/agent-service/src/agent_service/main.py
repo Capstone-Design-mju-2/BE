@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from agent_service.agent import cards, inventory_by_id, run_agent, search
 from agent_service.config import settings
-from agent_service.extract import extract
+from agent_service.extract import extract, skin_type_in
 from agent_service.llm import Llm, LlmError
 from agent_service.profile import ProfileRequest, analyze_profile
 from agent_service.tools import McpTools, ToolError
@@ -104,6 +104,7 @@ async def profile_insights(request: ProfileRequest, llm: Llm | None = Depends(ge
 @app.post("/api/v1/chat", tags=["chat"])
 async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: Llm | None = Depends(get_llm),
                fallback: Llm | None = Depends(get_fallback_llm)):
+    skin_type = request.skin_type or skin_type_in(request.message)
     try:
         if llm is not None:
             # Both LLMs share one limit, so the screen still has one wait to plan for (ADR-129).
@@ -111,7 +112,7 @@ async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: 
             for current in [llm, fallback] if fallback else [llm]:
                 try:
                     answer, products, inventories, reasons, searched = await run_agent(
-                        request.message, current, tools, request.skin_type, deadline,
+                        request.message, current, tools, skin_type, deadline,
                         request.search_conditions, request.exclude_product_ids)
                     return {"answer": answer, "products": cards(products, inventories, reasons),
                             "searchConditions": searched}
@@ -119,7 +120,7 @@ async def chat(request: ChatRequest, tools: McpTools = Depends(get_tools), llm: 
                     logger.warning("LLM %s could not answer (ADR-92, ADR-129): %r", current.model, error)
                     if not error.provider_down:
                         break
-        return await _rule_chat(request.message, tools, request.skin_type, request.search_conditions,
+        return await _rule_chat(request.message, tools, skin_type, request.search_conditions,
                                 request.exclude_product_ids)
     except ToolError:
         return JSONResponse(status_code=502,
