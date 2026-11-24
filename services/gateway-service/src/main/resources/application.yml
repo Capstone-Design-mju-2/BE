@@ -72,3 +72,9 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 2
+    instances:
+      # A chat takes about a minute with the evidence reranker (ADR-187), and a call over 60 s counts as slow by
+      # default, so a run of normal chats would open the circuit. Past 170 s it has already timed out (ADR-197).
+      agent:
+        base-config: default
+        slow-call-duration-threshold: 170s
