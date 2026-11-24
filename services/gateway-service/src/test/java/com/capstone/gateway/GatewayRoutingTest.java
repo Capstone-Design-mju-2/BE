@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,6 +25,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import com.sun.net.httpserver.HttpServer;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -143,6 +145,19 @@ class GatewayRoutingTest {
         }
 
         assertThat(circuitBreakers.circuitBreaker("order").getState()).isEqualTo(CircuitBreaker.State.OPEN);
+    }
+
+    @Test
+    void agent_회로는_1분_넘는_대화를_느린_호출로_세지_않고_나머지는_기본값이다() {
+        client.post().uri("/api/v1/profile/insights").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}").exchange().expectStatus().isOk();
+
+        CircuitBreakerConfig agent = circuitBreakers.circuitBreaker("agent").getCircuitBreakerConfig();
+        assertThat(agent.getSlowCallDurationThreshold()).isEqualTo(Duration.ofSeconds(170));
+        assertThat(agent.getSlidingWindowSize()).isEqualTo(10);
+        assertThat(agent.getMinimumNumberOfCalls()).isEqualTo(5);
+        assertThat(circuitBreakers.circuitBreaker("catalog").getCircuitBreakerConfig().getSlowCallDurationThreshold())
+                .isEqualTo(Duration.ofSeconds(60));
     }
 
     @Test
