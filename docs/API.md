@@ -33,7 +33,7 @@ POST /api/v1/chat
 
 `message`는 1자 이상 500자 이하다. 벗어나거나 없으면 400과 `{ "code": "INVALID_CHAT_REQUEST", "message": "..." }`를 반환한다.
 
-`skinType`은 선택이다(FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르거나 순서를 바꾸지는 않는다. `null`은 주지 않은 것과 같고, 다른 값이면 400 `INVALID_CHAT_REQUEST`다. LLM이 정하지 않고 agent가 요청 값을 그대로 검색에 넘긴다. 검색 경로가 OpenSearch(`SEARCH_BACKEND=opensearch`)이면 상품마다 그 피부 타입 작성자의 리뷰 중 질문과 가장 가까운 리뷰를 먼저 고른다.
+`skinType`은 선택이다(FE 이슈 #10). `dry`, `oily`, `combination`, `sensitive` 중 하나이고, 주면 근거 리뷰를 고를 때 같은 피부 타입 리뷰를 먼저 고른다. 상품을 거르거나 순서를 바꾸지는 않는다. `null`은 주지 않은 것과 같고, 다른 값이면 400 `INVALID_CHAT_REQUEST`다. LLM이 정하지 않고 agent가 요청 값을 그대로 검색에 넘긴다. 요청에 없으면 `message`에 "건성", "지성", "복합성", "민감성" 중 한 종류만 있을 때 그 값(`dry`, `oily`, `combination`, `sensitive`)을 쓴다. 두 종류 이상이면 쓰지 않고, 요청 값이 있으면 `message`와 달라도 요청 값을 쓴다(ADR-196). 검색 경로가 OpenSearch(`SEARCH_BACKEND=opensearch`)이면 상품마다 그 피부 타입 작성자의 리뷰 중 질문과 가장 가까운 리뷰를 먼저 고른다.
 
 ```json
 { "message": "끈적이지 않는 수분크림 추천해 줘", "skinType": "dry" }

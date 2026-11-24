@@ -217,13 +217,13 @@ class ChatTest(unittest.TestCase):
         self.assertEqual(self.chat("토너 99999999999원 이하").status_code, 200)
         self.assertEqual(tools.calls[0], ("search_products", "토너", None, 5))
 
-    def test_skinType을_검색에_넘기고_null은_없는_것으로_본다(self):
+    def test_skinType을_검색에_넘기고_null이면_메시지의_피부_타입으로_찾는다(self):
         tools = serve(SEARCH, INVENTORY)
 
-        for skin_type in ("dry", None):
-            response = self.client.post("/api/v1/chat", json={"message": MESSAGE, "skinType": skin_type})
+        for message, skin_type in ((MESSAGE, "oily"), (MESSAGE, None), ("끈적이지 않는 수분크림 추천해 줘", None)):
+            response = self.client.post("/api/v1/chat", json={"message": message, "skinType": skin_type})
             self.assertEqual(response.status_code, 200)
-        self.assertEqual(tools.skin_types, ["dry", None])
+        self.assertEqual(tools.skin_types, ["oily", "dry", None])
 
     def test_skinType이_네_값_밖이면_400과_오류_본문을_반환한다(self):
         tools = serve(SEARCH, INVENTORY)
@@ -309,13 +309,15 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual([p["reason"] for p in body["products"]], [None, None, None])
         self.assertEqual([call[0] for call in tools.calls], ["search_products"])
 
-    def test_skinType은_요청_값만_검색에_넘어가고_LLM이_넣은_값은_버린다(self):
-        for label, request, expected in (("요청에 있음", {"skinType": "dry"}, "dry"), ("요청에 없음", {}, None)):
+    def test_skinType은_요청_값이나_메시지의_피부_타입만_검색에_넘어가고_LLM이_넣은_값은_버린다(self):
+        for label, request, expected in (("요청에 있음", {"message": MESSAGE, "skinType": "dry"}, "dry"),
+                                         ("메시지에 있음", {"message": MESSAGE}, "dry"),
+                                         ("둘 다 없음", {"message": "끈적이지 않는 수분크림 추천해 줘"}, None)):
             with self.subTest(label):
                 tools = serve(SEARCH, INVENTORY, FakeLlm(
                     tool_call("search_products", {"q": "수분크림", "skin_type": "oily"}),
                     final("찾았어요.", {})))
-                self.client.post("/api/v1/chat", json={"message": MESSAGE, **request})
+                self.client.post("/api/v1/chat", json=request)
 
                 self.assertEqual(tools.skin_types, [expected])
                 self.assertEqual(self.traces()[-1]["skinType"], expected)
@@ -381,7 +383,7 @@ class LlmChatTest(unittest.TestCase):
                                                       "excludeProductIds": [1]}).json()
 
         self.assertEqual(body["answer"], "조건에 맞는 상품 1개를 찾았습니다.")
-        self.assertEqual(tools.searched, [{**conditions, "limit": 6}])
+        self.assertEqual(tools.searched, [{**conditions, "limit": 6, "skin_type": "dry"}])
         self.assertEqual(body["searchConditions"], conditions)
 
     def test_사진_주소는_카드에만_싣고_LLM에게는_넘기지_않는다(self):
@@ -493,7 +495,8 @@ class LlmChatTest(unittest.TestCase):
         tools = serve(SEARCH, INVENTORY, llm)
         body = self.chat().json()
 
-        self.assertEqual(tools.searched[1], {"q": "보습 크림", "max_price": 30000, "category": "스킨케어", "limit": 5})
+        self.assertEqual(tools.searched[1], {"q": "보습 크림", "max_price": 30000, "category": "스킨케어", "limit": 5,
+                                             "skin_type": "dry"})
         self.assertEqual(body["searchConditions"], {"q": "보습 크림", "max_price": 30000, "category": "스킨케어"})
 
     def test_재고를_확인한_뒤의_검색은_오류로_돌려주고_카드는_처음_검색_결과다(self):
