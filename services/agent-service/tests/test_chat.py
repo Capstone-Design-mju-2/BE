@@ -472,6 +472,32 @@ class LlmChatTest(unittest.TestCase):
         self.assertEqual([p["productId"] for p in body["products"]], [1])
         self.assertEqual(body["products"][0]["evidence"][0], complaint)
 
+    def downside_chat(self, *answers):
+        complaint = {"reviewId": 18, "rating": 5, "excerpt": "다 좋은데 향이 좀 별로예요", "skinType": None}
+        llm = FakeLlm(tool_call("search_products", {"q": "A 크림 A"}),
+                      tool_call("product_complaints", {"product_id": 1}), *answers)
+        tools = serve(SEARCH, INVENTORY, llm)
+        tools.reviews = {1: [complaint]}
+        tools.ranked = {"products": []}
+        return llm, self.chat("A 크림 A 단점 뭐야?").json()
+
+    def test_단점_답의_인용이_그_상품_리뷰에_없으면_한_번_다시_쓰게_한다(self):
+        llm, body = self.downside_chat(
+            final("'향이 강하다'는 리뷰가 있어요.", {"1": "'향이 좀 별로예요'라는 리뷰가 있어요."}),
+            final("'향이 좀 별로예요'라는 리뷰가 있어요.", {"1": "'향이 좀 별로예요'라는 리뷰가 있어요."}))
+
+        self.assertIn("'향이 강하다'", llm.requests[-1][-1]["content"])
+        self.assertEqual(body["answer"], "'향이 좀 별로예요'라는 리뷰가 있어요.")
+        self.assertEqual(self.traces()[-1]["quoteCheck"],
+                         {"unquoted": ["향이 강하다"], "rewritten": True, "unquotedAfter": []})
+
+    def test_다시_써도_리뷰에_없는_인용은_그_문장과_이유를_지운다(self):
+        wrong = final("향이 아쉽다는 리뷰가 많아요. '향이 강하다'는 말도 있어요.", {"1": "'용기가 불편해요'라는 리뷰가 있어요."})
+        _, body = self.downside_chat(wrong, wrong)
+
+        self.assertEqual(body["answer"], "향이 아쉽다는 리뷰가 많아요.")
+        self.assertIsNone(body["products"][0]["reason"])
+
     def test_단점을_묻지_않으면_단점_도구를_불러도_카드는_검색_결과_그대로다(self):
         llm = FakeLlm(tool_call("search_products", {"q": "수분크림"}),
                       tool_call("product_complaints", {"product_id": 99}),

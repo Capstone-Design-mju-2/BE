@@ -68,7 +68,14 @@ ANSWER_RULES = """- 마지막 답은 다른 글 없이 JSON 하나로만 쓴다:
 # product_complaints reads the review index, so it is served with the vector search only (ADR-194).
 DOWNSIDE_RULES = """
 - 질문이 상품 하나의 단점이나 아쉬운 점을 물으면 search_products의 q에 그 상품의 브랜드와 이름을 넣어 찾는다. 결과에서 이름이 질문과 가장 맞는 상품 하나를 골라 그 productId로 product_complaints를 부르고, check_inventory도 그 상품 하나로 부른다. 다른 상품은 추천하지 않고, reasons에는 그 상품 하나만 쓴다.
-- 그때 answer는 서너 문장까지 쓴다. product_complaints가 준 발췌를 작은따옴표로 인용해 아쉬운 점을 두세 가지로 묶고, 리뷰 수는 product_complaints의 reviewCount와 complaining만 쓴다. 아쉬운 점을 말하는 리뷰가 없으면 리뷰에서 아쉬운 점을 찾지 못했다고 답한다."""
+- 그때 answer는 서너 문장까지 쓴다. product_complaints가 준 발췌를 작은따옴표로 인용해 아쉬운 점을 두세 가지로 묶고, 리뷰 수는 product_complaints의 reviewCount와 complaining만 쓴다. 아쉬운 점을 말하는 리뷰가 없으면 리뷰에서 아쉬운 점을 찾지 못했다고 답한다.
+- 따옴표 안에는 product_complaints가 준 발췌의 구절을 글자 그대로만 쓴다. 말을 바꾸면 따옴표를 쓰지 않는다. 다른 상품의 리뷰는 인용하지 않는다."""
+# The LLM retypes what it quotes, so a downside answer carried reworded reviews and other products' ones (ADR-198).
+QUOTE_FIX = ("답의 작은따옴표 안 구절 가운데 이 상품의 리뷰 발췌에 그대로 없는 것이 있다: {quotes}. 도구는 부르지 않는다. 따옴표 안에는 "
+             "product_complaints가 준 이 상품 발췌의 구절만 글자 그대로 쓰고, 말을 바꾸면 따옴표를 쓰지 않는다. 다른 상품의 리뷰는 "
+             "쓰지 않는다. 같은 JSON으로 답을 다시 쓴다.")
+NO_QUOTED_ANSWER = "아쉬운 점을 말한 리뷰는 카드에서 확인해 주세요."
+SENTENCE_END = re.compile(r"[.!?](?=\s|$)")
 # The split rule comes after the filter rules: put between the query and filter rules, it made the LLM drop the
 # category in all three runs of one question (ADR-138).
 SYSTEM_PROMPT = ("너는 화장품 쇼핑몰의 상품 추천 도우미다.\n" + QUERY + "\n" + FILTER_RULES + "\n" + SPLIT_RULE
@@ -220,7 +227,65 @@ async def _loop(message: str, llm: Llm, tools: McpTools, trace: dict[str, Any], 
         # A downside question asks about one product, so its card stands alone whatever else the LLM wrote reasons for.
         products = [p for p in products or [] if p["productId"] in complained]
         reasons = {product_id: reason for product_id, reason in reasons.items() if product_id in complained}
+        answer, reasons = await _checked_quotes(answer, reasons, products, found, messages, reply, definitions, llm,
+                                                trace, deadline)
     return answer, with_cited_evidence(products or [], found, reasons), inventories, reasons, searched
+
+
+async def _checked_quotes(answer: str, reasons: dict[int, str], products: list[dict], found: dict[int, list[dict]],
+                          messages: list[dict[str, Any]], reply: dict[str, Any], definitions: list[dict[str, Any]],
+                          llm: Llm, trace: dict[str, Any], deadline: float) -> tuple[str, dict[int, str]]:
+    """A downside answer quotes the product's reviews. Quotes none of them holds go back to the LLM once, and those
+    still there afterwards leave with their sentence, or a reason as a whole (ADR-198)."""
+    pool = ([p["name"] for p in products] + [e["excerpt"] for p in products for e in p["evidence"]]
+            + [r["excerpt"] for p in products for r in found.get(p["productId"], [])])
+    bad = unquoted([answer, *reasons.values()], pool)
+    check = trace["quoteCheck"] = {"unquoted": bad}
+    if not bad:
+        return answer, reasons
+    retry = messages + [{"role": "assistant", "content": reply.get("content") or ""},
+                        {"role": "user", "content": QUOTE_FIX.format(quotes=", ".join(f"'{q}'" for q in bad))}]
+    try:
+        fixed, usage = await llm.complete(retry, definitions, timeout=deadline - time.monotonic())
+        trace["usage"].append(usage)
+        new_answer, new_reasons = final_answer(fixed.get("content"))
+        answer = new_answer
+        shown = {p["productId"] for p in products}
+        reasons = {product_id: reason for product_id, reason in new_reasons.items() if product_id in shown}
+        check["rewritten"] = True
+    except LlmError as error:
+        check["rewriteError"] = repr(error)[:200]
+    bad = check["unquotedAfter"] = unquoted([answer, *reasons.values()], pool)
+    if bad:
+        answer = without_sentences(answer, bad) or NO_QUOTED_ANSWER
+    return answer, {product_id: reason for product_id, reason in reasons.items() if not unquoted([reason], pool)}
+
+
+def unquoted(texts: Sequence[str], pool: Sequence[str]) -> list[str]:
+    """The quoted phrases in texts that no excerpt or name in pool holds (ADR-198).
+
+    >>> unquoted(["'끈적임은 좀 느껴져요'라는 리뷰와 '끈적임이 느껴진다'는 리뷰"], ["다만 지성이라 끈적임은 좀 느껴져요"])
+    ['끈적임이 느껴진다']
+    """
+    return [quote for text in texts for quote in QUOTE.findall(text) if not any(quotes(p, quote) for p in pool)]
+
+
+def without_sentences(text: str, phrases: Sequence[str]) -> str:
+    """text without each sentence that holds one of the phrases; a quote may hold sentence ends of its own (ADR-198).
+
+    >>> without_sentences("지속력이 짧아요. 또 '판이 넓어 잘 펴져요'라는 말도 있어요. 향은 좋아요.", ["판이 넓어 잘 펴져요"])
+    '지속력이 짧아요. 향은 좋아요.'
+    >>> without_sentences("'좀 떨어져요. 금방 사라져요'라는 리뷰가 있어요. 다만 향은 좋아요.", ["좀 떨어져요. 금방 사라져요"])
+    '다만 향은 좋아요.'
+    """
+    for phrase in phrases:
+        start = text.find(phrase)
+        if start < 0:
+            continue
+        ends = [m.end() for m in SENTENCE_END.finditer(text, 0, start)]
+        after = SENTENCE_END.search(text, start + len(phrase))
+        text = text[:ends[-1] if ends else 0] + text[after.end() if after else len(text):]
+    return " ".join(text.split())
 
 
 async def _split(raw_arguments: str, llm: Llm, tools: McpTools, trace: dict[str, Any], skin_type: str | None,
