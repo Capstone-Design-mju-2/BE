@@ -12,7 +12,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from agent_service import tools
 from agent_service.tools import McpTools, ToolError, _Session
 
 HEALTH = {"status": "UP", "service": "search-mcp"}
@@ -109,7 +111,9 @@ class ReopenHangTest(unittest.IsolatedAsyncioTestCase):
         real = Path(sys.executable).parent / "search-mcp"
         wrapper.write_text(f'#!/bin/sh\n[ -e "$MARKER" ] && exec sleep 3600\nexec {real}\n')
         wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
-        self.session = _Session(str(wrapper), {"MARKER": str(self.marker)}, start_timeout=2, call_timeout=2)
+        # start_timeout has to cover the real server's start, up to 3.1 s on a loaded Mac. The test removes the marker
+        # 3 s in, before the hung reopen reaches this limit, so the retry after it starts the real server.
+        self.session = _Session(str(wrapper), {"MARKER": str(self.marker)}, start_timeout=8, call_timeout=2)
         await self.session.start()
 
     async def asyncTearDown(self):
@@ -121,7 +125,8 @@ class ReopenHangTest(unittest.IsolatedAsyncioTestCase):
         os.kill(children()[0], signal.SIGKILL)
         asyncio.get_running_loop().call_later(3, self.marker.unlink)
 
-        with self.assertLogs(LOGGER, level="WARNING"):
+        # The call waits out the hung reopen's limit and a real start, which can pass the default 10 s.
+        with self.assertLogs(LOGGER, level="WARNING"), mock.patch.object(tools, "RECONNECT_WAIT_SECONDS", 30):
             result = await self.session.call("health", {})
 
         self.assertEqual(result, HEALTH)
